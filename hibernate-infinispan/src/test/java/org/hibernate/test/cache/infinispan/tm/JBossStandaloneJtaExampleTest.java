@@ -55,7 +55,7 @@ import org.hibernate.stat.Statistics;
 import org.hibernate.test.cache.infinispan.functional.Item;
 import org.hibernate.testing.ServiceRegistryBuilder;
 import org.hibernate.testing.jta.JtaAwareConnectionProviderImpl;
-import org.infinispan.configuration.cache.ConfigurationBuilder;
+import org.infinispan.configuration.global.GlobalConfigurationBuilder;
 import org.infinispan.transaction.lookup.JBossStandaloneJTAManagerLookup;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
@@ -89,7 +89,7 @@ public class JBossStandaloneJtaExampleTest {
       jndiServer = startJndiServer();
       ctx = createJndiContext();
       // Inject configuration to initialise transaction manager from config classloader
-      lookup.init(new ConfigurationBuilder().build());
+      lookup.init(new GlobalConfigurationBuilder().build());
       bindTransactionManager();
       bindUserTransaction();
    }

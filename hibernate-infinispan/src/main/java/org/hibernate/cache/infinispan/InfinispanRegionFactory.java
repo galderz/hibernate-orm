@@ -40,7 +40,7 @@ import org.hibernate.internal.util.config.ConfigurationHelper;
 
 import org.infinispan.AdvancedCache;
 import org.infinispan.commands.module.ModuleCommandFactory;
-import org.infinispan.commons.util.FileLookupFactory;
+import org.infinispan.commons.util.FileLookup;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
@@ -402,14 +402,15 @@ public class InfinispanRegionFactory implements RegionFactory {
 			);
 			ClassLoader classLoader = ClassLoaderHelper.getContextClassLoader();
 			InputStream is;
+         FileLookup fl = new FileLookup();
 			try {
-				is = FileLookupFactory.newInstance().lookupFileStrict( configLoc, classLoader );
+				is = fl.lookupFileStrict( configLoc, classLoader );
 			}
 			catch (FileNotFoundException e) {
 				// In some environments (ex: OSGi), hibernate-infinispan may not
 				// be in the app CL.  It's important to also try this CL.
 				classLoader = this.getClass().getClassLoader();
-				is = FileLookupFactory.newInstance().lookupFileStrict( configLoc, classLoader );
+				is = fl.lookupFileStrict( configLoc, classLoader );
 			}
 			final ParserRegistry parserRegistry = new ParserRegistry( classLoader );
 			final ConfigurationBuilderHolder holder = parserRegistry.parse( is );
