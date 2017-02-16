@@ -7,6 +7,7 @@
 package org.hibernate.cache.infinispan.access;
 
 import org.hibernate.cache.infinispan.impl.BaseTransactionalDataRegion;
+import org.hibernate.cache.infinispan.util.FilterNullValueConverter;
 import org.hibernate.cache.infinispan.util.VersionedEntry;
 import org.infinispan.AdvancedCache;
 import org.infinispan.commands.read.SizeCommand;
@@ -18,8 +19,8 @@ import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
-import org.infinispan.filter.NullValueConverter;
-import org.infinispan.interceptors.CallInterceptor;
+import org.infinispan.filter.CacheFilters;
+import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
 
@@ -35,7 +36,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Radim Vansa &lt;rvansa@redhat.com&gt;
  */
-public class VersionedCallInterceptor extends CallInterceptor {
+public class VersionedCallInterceptor extends CommandInterceptor {
 	private final Comparator<Object> versionComparator;
 	private final Metadata expiringMetadata;
 	private AdvancedCache cache;
@@ -145,21 +146,10 @@ public class VersionedCallInterceptor extends CallInterceptor {
 	@Override
 	public Object visitSizeCommand(InvocationContext ctx, SizeCommand command) throws Throwable {
 		Set<Flag> flags = command.getFlags();
-		int size = 0;
 		AdvancedCache decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
 		// In non-transactional caches we don't care about context
-		CloseableIterable<CacheEntry<Object, Void>> iterable = decoratedCache
-				.filterEntries(VersionedEntry.EXCLUDE_EMPTY_EXTRACT_VALUE).converter(NullValueConverter.getInstance());
-		try {
-			for (CacheEntry<Object, Void> entry : iterable) {
-				if (size++ == Integer.MAX_VALUE) {
-					return Integer.MAX_VALUE;
-				}
-			}
-		}
-		finally {
-			iterable.close();
-		}
-		return size;
+		return CacheFilters.filterAndConvert(decoratedCache.entrySet().stream(),
+				new FilterNullValueConverter(VersionedEntry.EXCLUDE_EMPTY_EXTRACT_VALUE))
+				.count();
 	}
 }

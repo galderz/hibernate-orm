@@ -64,13 +64,13 @@ public abstract class AbstractNonFunctionalTest extends org.hibernate.testing.ju
 	@Parameterized.Parameters(name = "{2},{3}")
 	public List<Object[]> getCacheModeParameters() {
 		ArrayList<Object[]> modes = new ArrayList<>();
-		for (AccessType accessType : new AccessType[] {
-				AccessType.TRANSACTIONAL,
-				AccessType.READ_ONLY,
-				AccessType.READ_WRITE
-		}) {
-			modes.add(new Object[]{CacheMode.INVALIDATION_SYNC, accessType});
-		}
+//		for (AccessType accessType : new AccessType[] {
+//				AccessType.TRANSACTIONAL,
+//				AccessType.READ_ONLY,
+//				AccessType.READ_WRITE
+//		}) {
+//			modes.add(new Object[]{CacheMode.INVALIDATION_SYNC, accessType});
+//		}
 		for (AccessType accessType : new AccessType[] {
 				AccessType.READ_ONLY,
 				AccessType.READ_WRITE,

@@ -9,6 +9,9 @@ package org.hibernate.cache.infinispan.access;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
+import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -27,16 +30,14 @@ import java.util.concurrent.CompletionException;
  * {@link CompletableFuture} and we'll wait for it here.
  */
 public class LockingInterceptor extends NonTransactionalLockingInterceptor {
+	private static final Log log = LogFactory.getLog(LockingInterceptor.class);
 	@Override
 	protected Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
 		Object returnValue = null;
 		try {
-			// Clear any metadata; we'll set them as appropriate in TombstoneCallInterceptor
-			command.setMetadata(null);
+			doLockAndRecord( ctx, command );
 
-			lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
-
-			returnValue = invokeNextInterceptor(ctx, command);
+			returnValue = invokeNext(ctx, command);
 			return returnValue;
 		}
 		finally {
@@ -49,6 +50,16 @@ public class LockingInterceptor extends NonTransactionalLockingInterceptor {
 					throw e.getCause();
 				}
 			}
+		}
+	}
+
+	private void doLockAndRecord(InvocationContext ctx, DataWriteCommand command) throws InterruptedException {
+		try {
+			lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
+		}
+		catch (TimeoutException e) {
+			log.trace( "Timeout while acquiring lock", e );
+			throw e;
 		}
 	}
 }

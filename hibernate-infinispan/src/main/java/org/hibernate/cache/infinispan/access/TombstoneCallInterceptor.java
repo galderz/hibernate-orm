@@ -17,13 +17,16 @@ import org.infinispan.commands.write.ValueMatcher;
 import org.infinispan.commons.logging.Log;
 import org.infinispan.commons.logging.LogFactory;
 import org.infinispan.commons.util.CloseableIterable;
+import org.infinispan.commons.util.CloseableIterator;
+import org.infinispan.commons.util.Closeables;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
-import org.infinispan.interceptors.CallInterceptor;
+import org.infinispan.filter.CacheFilters;
+import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
 
@@ -40,7 +43,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Radim Vansa &lt;rvansa@redhat.com&gt;
  */
-public class TombstoneCallInterceptor extends CallInterceptor {
+public class TombstoneCallInterceptor extends CommandInterceptor {
 	private static final Log log = LogFactory.getLog(TombstoneCallInterceptor.class);
 	private static final UUID ZERO = new UUID(0, 0);
 
@@ -191,19 +194,20 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 		Set<Flag> flags = command.getFlags();
 		int size = 0;
 		Map<Object, CacheEntry> contextEntries = ctx.getLookedUpEntries();
-		AdvancedCache decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
+		AdvancedCache<Object, Object> decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
 		// In non-transactional caches we don't care about context
-		CloseableIterable<CacheEntry<Object, Object>> iterable = decoratedCache
-				.filterEntries(Tombstone.EXCLUDE_TOMBSTONES);
+		CloseableIterator<CacheEntry<Object, Object>> it = Closeables.iterator(decoratedCache.cacheEntrySet().stream()
+				.filter(CacheFilters.predicate(Tombstone.EXCLUDE_TOMBSTONES)));
 		try {
-			for (CacheEntry<Object, Object> entry : iterable) {
+			while (it.hasNext()) {
+				CacheEntry<Object, Object> entry = it.next();
 				if (entry.getValue() != null && size++ == Integer.MAX_VALUE) {
 					return Integer.MAX_VALUE;
 				}
 			}
 		}
 		finally {
-			iterable.close();
+			it.close();
 		}
 		return size;
 	}

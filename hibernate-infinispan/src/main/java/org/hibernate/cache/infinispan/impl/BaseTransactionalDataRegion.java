@@ -33,8 +33,10 @@ import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.filter.KeyValueFilter;
-import org.infinispan.interceptors.CallInterceptor;
-import org.infinispan.interceptors.EntryWrappingInterceptor;
+import org.infinispan.interceptors.AsyncInterceptorChain;
+import org.infinispan.interceptors.distribution.TriangleDistributionInterceptor;
+import org.infinispan.interceptors.impl.CallInterceptor;
+import org.infinispan.interceptors.impl.EntryWrappingInterceptor;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.interceptors.distribution.NonTxDistributionInterceptor;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
@@ -157,11 +159,10 @@ public abstract class BaseTransactionalDataRegion
 
 		replaceCommonInterceptors();
 
-		cache.removeInterceptor(CallInterceptor.class);
 		VersionedCallInterceptor tombstoneCallInterceptor = new VersionedCallInterceptor(this, metadata.getVersionComparator());
 		cache.getComponentRegistry().registerComponent(tombstoneCallInterceptor, VersionedCallInterceptor.class);
-		List<CommandInterceptor> interceptorChain = cache.getInterceptorChain();
-		cache.addInterceptor(tombstoneCallInterceptor, interceptorChain.size());
+		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
+		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
 
 		strategy = Strategy.VERSIONED_ENTRIES;
 	}
@@ -178,11 +179,10 @@ public abstract class BaseTransactionalDataRegion
 
 		replaceCommonInterceptors();
 
-		cache.removeInterceptor(CallInterceptor.class);
 		TombstoneCallInterceptor tombstoneCallInterceptor = new TombstoneCallInterceptor(this);
 		cache.getComponentRegistry().registerComponent(tombstoneCallInterceptor, TombstoneCallInterceptor.class);
-		List<CommandInterceptor> interceptorChain = cache.getInterceptorChain();
-		cache.addInterceptor(tombstoneCallInterceptor, interceptorChain.size());
+		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
+		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
 
 		strategy = Strategy.TOMBSTONES;
 	}
@@ -193,29 +193,22 @@ public abstract class BaseTransactionalDataRegion
 			return;
 		}
 
+		AsyncInterceptorChain chain = cache.getAsyncInterceptorChain();
+
 		LockingInterceptor lockingInterceptor = new LockingInterceptor();
 		cache.getComponentRegistry().registerComponent(lockingInterceptor, LockingInterceptor.class);
-		if (!cache.addInterceptorBefore(lockingInterceptor, NonTransactionalLockingInterceptor.class)) {
-			throw new IllegalStateException("Misconfigured cache, interceptor chain is " + cache.getInterceptorChain());
+		if (!chain.addInterceptorBefore(lockingInterceptor, NonTransactionalLockingInterceptor.class)) {
+			throw new IllegalStateException("Misconfigured cache, interceptor chain is " + chain);
 		}
 		cache.removeInterceptor(NonTransactionalLockingInterceptor.class);
 
 		UnorderedDistributionInterceptor distributionInterceptor = new UnorderedDistributionInterceptor();
 		cache.getComponentRegistry().registerComponent(distributionInterceptor, UnorderedDistributionInterceptor.class);
-		if (!cache.addInterceptorBefore(distributionInterceptor, NonTxDistributionInterceptor.class)) {
-			throw new IllegalStateException("Misconfigured cache, interceptor chain is " + cache.getInterceptorChain());
+		if (!chain.addInterceptorBefore(distributionInterceptor, NonTxDistributionInterceptor.class) &&
+				!chain.addInterceptorBefore( distributionInterceptor, TriangleDistributionInterceptor.class)) {
+			throw new IllegalStateException("Misconfigured cache, interceptor chain is " + chain);
 		}
 		cache.removeInterceptor(NonTxDistributionInterceptor.class);
-
-		EntryWrappingInterceptor ewi = cache.getComponentRegistry().getComponent(EntryWrappingInterceptor.class);
-		try {
-			Field isUsingLockDelegation = EntryWrappingInterceptor.class.getDeclaredField("isUsingLockDelegation");
-			isUsingLockDelegation.setAccessible(true);
-			isUsingLockDelegation.set(ewi, false);
-		}
-		catch (NoSuchFieldException | IllegalAccessException e) {
-			throw new IllegalStateException(e);
-		}
 	}
 
 	public long getTombstoneExpiration() {

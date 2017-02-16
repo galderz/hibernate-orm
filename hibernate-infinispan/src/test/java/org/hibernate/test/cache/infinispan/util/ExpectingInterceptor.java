@@ -3,7 +3,7 @@ package org.hibernate.test.cache.infinispan.util;
 import org.infinispan.AdvancedCache;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.context.InvocationContext;
-import org.infinispan.interceptors.InvocationContextInterceptor;
+import org.infinispan.interceptors.impl.InvocationContextInterceptor;
 import org.infinispan.interceptors.base.BaseCustomInterceptor;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;

@@ -61,6 +61,7 @@ public class CollectionRegionAccessStrategyTest extends
 
 	@Test
 	public void testGetRegion() {
+		log.debug( "testGetRegion" );
 		assertEquals( "Correct region", localRegion, localAccessStrategy.getRegion() );
 	}
 

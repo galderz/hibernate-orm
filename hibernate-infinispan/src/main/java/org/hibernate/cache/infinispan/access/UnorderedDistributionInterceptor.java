@@ -54,7 +54,7 @@ public class UnorderedDistributionInterceptor extends NonTxDistributionIntercept
 	public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
 		if (command.hasFlag(Flag.CACHE_MODE_LOCAL)) {
 			// for state-transfer related writes
-			return invokeNextInterceptor(ctx, command);
+			return invokeNext(ctx, command);
 		}
 		int commandTopologyId = command.getTopologyId();
 		int currentTopologyId = stateTransferManager.getCacheTopology().getTopologyId();
@@ -67,12 +67,12 @@ public class UnorderedDistributionInterceptor extends NonTxDistributionIntercept
 		List<Address> owners = null;
 		if (writeCH.isReplicated()) {
 			// local result is always ignored
-			invokeNextInterceptor(ctx, command);
+			invokeNext(ctx, command);
 		}
 		else {
 			owners = writeCH.locateOwners(command.getKey());
 			if (owners.contains(rpcManager.getAddress())) {
-				invokeNextInterceptor(ctx, command);
+				invokeNext(ctx, command);
 			}
 			else {
 				log.tracef("Not invoking %s on %s since it is not an owner", command, rpcManager.getAddress());

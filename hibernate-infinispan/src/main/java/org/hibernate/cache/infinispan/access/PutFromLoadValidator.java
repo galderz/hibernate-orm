@@ -28,10 +28,13 @@ import org.infinispan.AdvancedCache;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
-import org.infinispan.interceptors.EntryWrappingInterceptor;
-import org.infinispan.interceptors.InvalidationInterceptor;
+import org.infinispan.interceptors.AsyncInterceptor;
+import org.infinispan.interceptors.AsyncInterceptorChain;
+import org.infinispan.interceptors.impl.EntryWrappingInterceptor;
+import org.infinispan.interceptors.impl.InvalidationInterceptor;
 import org.infinispan.interceptors.base.CommandInterceptor;
 import org.infinispan.manager.EmbeddedCacheManager;
+import org.infinispan.util.ByteString;
 
 /**
  * Encapsulates logic to allow a {@link InvalidationCacheAccessDelegate} to determine
@@ -175,13 +178,14 @@ public class PutFromLoadValidator {
 	 * Besides the call from constructor, this should be called only from tests when mocking the validator.
 	 */
 	public static void addToCache(AdvancedCache cache, PutFromLoadValidator validator) {
-		List<CommandInterceptor> interceptorChain = cache.getInterceptorChain();
-		log.debug("Interceptor chain was: " + interceptorChain);
+		AsyncInterceptorChain chain = cache.getAsyncInterceptorChain();
+		List<AsyncInterceptor> interceptors = chain.getInterceptors();
+		log.debug("Interceptor chain was: " + interceptors);
 		int position = 0;
 		// add interceptor before uses exact match, not instanceof match
 		int invalidationPosition = 0;
 		int entryWrappingPosition = 0;
-		for (CommandInterceptor ci : interceptorChain) {
+		for (AsyncInterceptor ci : interceptors) {
 			if (ci instanceof InvalidationInterceptor) {
 				invalidationPosition = position;
 			}
@@ -195,24 +199,24 @@ public class PutFromLoadValidator {
 			cache.removeInterceptor(invalidationPosition);
 			TxInvalidationInterceptor txInvalidationInterceptor = new TxInvalidationInterceptor();
 			cache.getComponentRegistry().registerComponent(txInvalidationInterceptor, TxInvalidationInterceptor.class);
-			cache.addInterceptor(txInvalidationInterceptor, invalidationPosition);
+			chain.addInterceptor(txInvalidationInterceptor, invalidationPosition);
 
 			// Note that invalidation does *NOT* acquire locks; therefore, we have to start invalidating before
 			// wrapping the entry, since if putFromLoad was invoked between wrap and beginInvalidatingKey, the invalidation
 			// would not commit the entry removal (as during wrap the entry was not in cache)
-			TxPutFromLoadInterceptor txPutFromLoadInterceptor = new TxPutFromLoadInterceptor(validator, cache.getName());
+			TxPutFromLoadInterceptor txPutFromLoadInterceptor = new TxPutFromLoadInterceptor(validator, ByteString.fromString(cache.getName()));
 			cache.getComponentRegistry().registerComponent(txPutFromLoadInterceptor, TxPutFromLoadInterceptor.class);
-			cache.addInterceptor(txPutFromLoadInterceptor, entryWrappingPosition);
+			chain.addInterceptor(txPutFromLoadInterceptor, entryWrappingPosition);
 		}
 		else {
 			cache.removeInterceptor(invalidationPosition);
 			NonTxInvalidationInterceptor nonTxInvalidationInterceptor = new NonTxInvalidationInterceptor(validator);
 			cache.getComponentRegistry().registerComponent(nonTxInvalidationInterceptor, NonTxInvalidationInterceptor.class);
-			cache.addInterceptor(nonTxInvalidationInterceptor, invalidationPosition);
+			chain.addInterceptor(nonTxInvalidationInterceptor, invalidationPosition);
 
-			NonTxPutFromLoadInterceptor nonTxPutFromLoadInterceptor = new NonTxPutFromLoadInterceptor(validator, cache.getName());
+			NonTxPutFromLoadInterceptor nonTxPutFromLoadInterceptor = new NonTxPutFromLoadInterceptor(validator, ByteString.fromString(cache.getName()));
 			cache.getComponentRegistry().registerComponent(nonTxPutFromLoadInterceptor, NonTxPutFromLoadInterceptor.class);
-			cache.addInterceptor(nonTxPutFromLoadInterceptor, entryWrappingPosition);
+			chain.addInterceptor(nonTxPutFromLoadInterceptor, entryWrappingPosition);
 			validator.nonTxPutFromLoadInterceptor = nonTxPutFromLoadInterceptor;
 		}
 		log.debug("New interceptor chain is: " + cache.getInterceptorChain());
@@ -230,18 +234,19 @@ public class PutFromLoadValidator {
 	public static PutFromLoadValidator removeFromCache(AdvancedCache cache) {
 		cache.removeInterceptor(TxPutFromLoadInterceptor.class);
 		cache.removeInterceptor(NonTxPutFromLoadInterceptor.class);
-		for (Object i : cache.getInterceptorChain()) {
+		AsyncInterceptorChain chain = cache.getAsyncInterceptorChain();
+		for (Object i : chain.getInterceptors()) {
 			if (i instanceof NonTxInvalidationInterceptor) {
 				InvalidationInterceptor invalidationInterceptor = new InvalidationInterceptor();
 				cache.getComponentRegistry().registerComponent(invalidationInterceptor, InvalidationInterceptor.class);
-				cache.addInterceptorBefore(invalidationInterceptor, NonTxInvalidationInterceptor.class);
+				chain.addInterceptorBefore(invalidationInterceptor, NonTxInvalidationInterceptor.class);
 				cache.removeInterceptor(NonTxInvalidationInterceptor.class);
 				break;
 			}
 			else if (i instanceof TxInvalidationInterceptor) {
 				InvalidationInterceptor invalidationInterceptor = new InvalidationInterceptor();
 				cache.getComponentRegistry().registerComponent(invalidationInterceptor, InvalidationInterceptor.class);
-				cache.addInterceptorBefore(invalidationInterceptor, TxInvalidationInterceptor.class);
+				chain.addInterceptorBefore(invalidationInterceptor, TxInvalidationInterceptor.class);
 				cache.removeInterceptor(TxInvalidationInterceptor.class);
 				break;
 			}

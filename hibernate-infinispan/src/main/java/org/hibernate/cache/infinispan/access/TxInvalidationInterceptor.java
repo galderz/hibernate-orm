@@ -26,6 +26,7 @@ import org.infinispan.commands.write.PutMapCommand;
 import org.infinispan.commands.write.RemoveCommand;
 import org.infinispan.commands.write.ReplaceCommand;
 import org.infinispan.commands.write.WriteCommand;
+import org.infinispan.commons.util.EnumUtil;
 import org.infinispan.commons.util.InfinispanCollections;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
@@ -33,6 +34,8 @@ import org.infinispan.context.impl.LocalTxInvocationContext;
 import org.infinispan.context.impl.TxInvocationContext;
 import org.infinispan.jmx.annotations.MBean;
 import org.infinispan.remoting.transport.Address;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 /**
  * This interceptor acts as a replacement to the replication interceptor when the CacheImpl is configured with
@@ -50,13 +53,14 @@ import org.infinispan.remoting.transport.Address;
 @MBean(objectName = "Invalidation", description = "Component responsible for invalidating entries on remote caches when entries are written to locally.")
 public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 	private static final InfinispanMessageLogger log = InfinispanMessageLogger.Provider.getLog( TxInvalidationInterceptor.class );
+	private static final Log ispnLog = LogFactory.getLog(TxInvalidationInterceptor.class);
 
 	@Override
 	public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
 		if ( !isPutForExternalRead( command ) ) {
 			return handleInvalidate( ctx, command, command.getKey() );
 		}
-		return invokeNextInterceptor( ctx, command );
+		return invokeNext( ctx, command );
 	}
 
 	@Override
@@ -71,7 +75,7 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 
 	@Override
 	public Object visitClearCommand(InvocationContext ctx, ClearCommand command) throws Throwable {
-		Object retval = invokeNextInterceptor( ctx, command );
+		Object retval = invokeNext( ctx, command );
 		if ( !isLocalModeForced( command ) ) {
 			// just broadcast the clear command - this is simplest!
 			if ( ctx.isOriginLocal() ) {
@@ -88,7 +92,7 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 
 	@Override
 	public Object visitPrepareCommand(TxInvocationContext ctx, PrepareCommand command) throws Throwable {
-		Object retval = invokeNextInterceptor( ctx, command );
+		Object retval = invokeNext( ctx, command );
 		log.tracef( "Entering InvalidationInterceptor's prepare phase.  Ctx flags are empty" );
 		// fetch the modifications before the transaction is committed (and thus removed from the txTable)
 		if ( shouldInvokeRemoteTxCommand( ctx ) ) {
@@ -107,7 +111,7 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 
 	@Override
 	public Object visitLockControlCommand(TxInvocationContext ctx, LockControlCommand command) throws Throwable {
-		Object retVal = invokeNextInterceptor( ctx, command );
+		Object retVal = invokeNext( ctx, command );
 		if ( ctx.isOriginLocal() ) {
 			//unlock will happen async as it is a best effort
 			boolean sync = !command.isUnlock();
@@ -119,7 +123,7 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 	}
 
 	private Object handleInvalidate(InvocationContext ctx, WriteCommand command, Object... keys) throws Throwable {
-		Object retval = invokeNextInterceptor( ctx, command );
+		Object retval = invokeNext( ctx, command );
 		if ( command.isSuccessful() && !ctx.isInTxScope() ) {
 			if ( keys != null && keys.length != 0 ) {
 				if ( !isLocalModeForced( command ) ) {
@@ -163,6 +167,11 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 		}
 	}
 
+	@Override
+	protected Log getLog() {
+		return ispnLog;
+	}
+
 	public static class InvalidationFilterVisitor extends AbstractVisitor {
 
 		Set<Object> result;
@@ -204,7 +213,7 @@ public class TxInvalidationInterceptor extends BaseInvalidationInterceptor {
 	private void invalidateAcrossCluster(boolean synchronous, Object[] keys, InvocationContext ctx) throws Throwable {
 		// increment invalidations counter if statistics maintained
 		incrementInvalidations();
-		final InvalidateCommand invalidateCommand = commandsFactory.buildInvalidateCommand( InfinispanCollections.<Flag>emptySet(), keys );
+		final InvalidateCommand invalidateCommand = commandsFactory.buildInvalidateCommand( EnumUtil.EMPTY_BIT_SET, keys );
 		if ( log.isDebugEnabled() ) {
 			log.debug( "Cache [" + rpcManager.getAddress() + "] replicating " + invalidateCommand );
 		}

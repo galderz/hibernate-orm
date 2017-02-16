@@ -26,6 +26,7 @@ import org.infinispan.remoting.rpc.RpcManager;
 import org.infinispan.remoting.rpc.RpcOptions;
 import org.infinispan.remoting.transport.Address;
 import org.infinispan.statetransfer.StateTransferManager;
+import org.infinispan.util.ByteString;
 
 import java.util.List;
 
@@ -39,14 +40,14 @@ import java.util.List;
  */
 public class NonTxPutFromLoadInterceptor extends BaseCustomInterceptor {
 	private final static InfinispanMessageLogger log = InfinispanMessageLogger.Provider.getLog(NonTxPutFromLoadInterceptor.class);
-	private final String cacheName;
+	private final ByteString cacheName;
 	private final PutFromLoadValidator putFromLoadValidator;
 	private CacheCommandInitializer commandInitializer;
 	private RpcManager rpcManager;
 	private StateTransferManager stateTransferManager;
 	private RpcOptions asyncUnordered;
 
-	public NonTxPutFromLoadInterceptor(PutFromLoadValidator putFromLoadValidator, String cacheName) {
+	public NonTxPutFromLoadInterceptor(PutFromLoadValidator putFromLoadValidator, ByteString cacheName) {
 		this.putFromLoadValidator = putFromLoadValidator;
 		this.cacheName = cacheName;
 	}
