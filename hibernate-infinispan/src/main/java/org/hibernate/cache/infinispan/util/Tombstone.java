@@ -186,7 +186,7 @@ public class Tombstone {
 		}
 	}
 
-	public static class ExcludeTombstonesFilter implements KeyValueFilter {
+	public static class ExcludeTombstonesFilter implements KeyValueFilter<Object, Object> {
 		private ExcludeTombstonesFilter() {}
 
 		@Override

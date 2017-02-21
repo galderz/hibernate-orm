@@ -6,9 +6,14 @@
  */
 package org.hibernate.cache.infinispan.access;
 
+import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.interceptors.InvocationFinallyAction;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
+import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.logging.Log;
+import org.infinispan.util.logging.LogFactory;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -27,28 +32,46 @@ import java.util.concurrent.CompletionException;
  * {@link CompletableFuture} and we'll wait for it here.
  */
 public class LockingInterceptor extends NonTransactionalLockingInterceptor {
-	@Override
-	protected Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
-		Object returnValue = null;
-		try {
-			// Clear any metadata; we'll set them as appropriate in TombstoneCallInterceptor
-			command.setMetadata(null);
+	private static final Log log = LogFactory.getLog(LockingInterceptor.class);
 
-			lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
-
-			returnValue = invokeNextInterceptor(ctx, command);
-			return returnValue;
-		}
-		finally {
-			lockManager.unlockAll(ctx);
-			if (returnValue instanceof CompletableFuture) {
+	protected final InvocationFinallyAction unlockAllReturnCheckCompletableFutureHandler = new InvocationFinallyAction() {
+		@Override
+		public void accept(InvocationContext rCtx, VisitableCommand rCommand, Object rv, Throwable throwable) throws Throwable {
+			lockManager.unlockAll(rCtx);
+			if (rv instanceof CompletableFuture) {
 				try {
-					((CompletableFuture) returnValue).join();
+					((CompletableFuture) rv).join();
 				}
 				catch (CompletionException e) {
 					throw e.getCause();
 				}
 			}
 		}
+	};
+
+	@Override
+	protected Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
+		try {
+			lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
+		}
+		catch (Throwable t) {
+			lockManager.unlockAll(ctx);
+			throw t;
+		}
+		return invokeNextAndFinally(ctx, command, unlockAllReturnCheckCompletableFutureHandler);
+
+//		try {
+//			lockAndRecord( ctx, command.getKey(), getLockTimeoutMillis( command ) );
+//		}
+//		catch (TimeoutException e) {
+//			log.trace( "Timeout while acquiring lock", e );
+//			throw e;
+//		}
+//		catch (Throwable t) {
+//			lockManager.unlockAll( ctx );
+//			throw t;
+//		}
+//		return invokeNextAndFinally( ctx, command, unlockAllReturnCheckCompletableFutureHandler );
 	}
+	
 }

@@ -20,6 +20,7 @@ out
 *.iws
 *.iml
 atlassian-ide-plugin.xml
+classes
 
 # Eclipse specific files/directories
 .classpath

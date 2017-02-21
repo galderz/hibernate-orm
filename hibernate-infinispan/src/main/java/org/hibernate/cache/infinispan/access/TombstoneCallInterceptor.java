@@ -11,19 +11,23 @@ import org.hibernate.cache.infinispan.util.FutureUpdate;
 import org.hibernate.cache.infinispan.util.TombstoneUpdate;
 import org.hibernate.cache.infinispan.util.Tombstone;
 import org.infinispan.AdvancedCache;
+import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.read.SizeCommand;
 import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commands.write.ValueMatcher;
 import org.infinispan.commons.logging.Log;
 import org.infinispan.commons.logging.LogFactory;
-import org.infinispan.commons.util.CloseableIterable;
+import org.infinispan.commons.util.CloseableIterator;
+import org.infinispan.commons.util.Closeables;
 import org.infinispan.container.entries.CacheEntry;
 import org.infinispan.container.entries.MVCCEntry;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
 import org.infinispan.factories.annotations.Inject;
 import org.infinispan.factories.annotations.Start;
-import org.infinispan.interceptors.CallInterceptor;
+import org.infinispan.filter.CacheFilters;
+import org.infinispan.interceptors.DDAsyncInterceptor;
+import org.infinispan.interceptors.InvocationExceptionFunction;
 import org.infinispan.metadata.EmbeddedMetadata;
 import org.infinispan.metadata.Metadata;
 
@@ -40,7 +44,7 @@ import java.util.concurrent.TimeUnit;
  *
  * @author Radim Vansa &lt;rvansa@redhat.com&gt;
  */
-public class TombstoneCallInterceptor extends CallInterceptor {
+public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 	private static final Log log = LogFactory.getLog(TombstoneCallInterceptor.class);
 	private static final UUID ZERO = new UUID(0, 0);
 
@@ -66,23 +70,19 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 			.maxIdle(cacheConfiguration.expiration().maxIdle()).build();
 	}
 
-	@Override
 	public Object visitPutKeyValueCommand(InvocationContext ctx, PutKeyValueCommand command) throws Throwable {
 		MVCCEntry e = (MVCCEntry) ctx.lookupEntry(command.getKey());
-		if (e == null) {
-			return null;
-		}
 		log.tracef("In cache %s(%d) applying update %s to %s", cache.getName(), region.getLastRegionInvalidation(), command.getValue(), e.getValue());
 		try {
 			Object value = command.getValue();
 			if (value instanceof TombstoneUpdate) {
-				return handleTombstoneUpdate(e, (TombstoneUpdate) value, command);
+				return handleTombstoneUpdate(ctx, e, (TombstoneUpdate) value, command);
 			}
 			else if (value instanceof Tombstone) {
 				return handleTombstone(e, (Tombstone) value);
 			}
 			else if (value instanceof FutureUpdate) {
-				return handleFutureUpdate(e, (FutureUpdate) value, command);
+				return handleFutureUpdate(ctx, e, (FutureUpdate) value, command);
 			}
 			else {
 				return super.visitPutKeyValueCommand(ctx, command);
@@ -93,7 +93,7 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 		}
 	}
 
-	private Object handleFutureUpdate(MVCCEntry e, FutureUpdate futureUpdate, PutKeyValueCommand command) {
+	private Object handleFutureUpdate(InvocationContext ctx, MVCCEntry e, FutureUpdate futureUpdate, PutKeyValueCommand command) {
 		Object storedValue = e.getValue();
 		if (storedValue instanceof Tombstone) {
 			// Note that the update has to keep tombstone even if the transaction was unsuccessful;
@@ -107,7 +107,7 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 			// We need to first execute the async update and then local one, because if we're on the primary
 			// owner the local future update would fail the async one.
 			// TODO: There is some discrepancy with TombstoneUpdate handling which does not fail the update
-			setFailed(command);
+			return setFailed(ctx, command);
 		}
 		return null;
 	}
@@ -124,14 +124,14 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 		return null;
 	}
 
-	protected Object handleTombstoneUpdate(MVCCEntry e, TombstoneUpdate tombstoneUpdate, PutKeyValueCommand command) {
+	protected Object handleTombstoneUpdate(InvocationContext ctx, MVCCEntry e, TombstoneUpdate tombstoneUpdate, PutKeyValueCommand command) {
 		Object storedValue = e.getValue();
 		Object value = tombstoneUpdate.getValue();
 
 		if (value == null) {
 			// eviction
 			if (storedValue == null || storedValue instanceof Tombstone) {
-				setFailed(command);
+				return setFailed(ctx, command);
 			}
 			else {
 				// We have to keep Tombstone, because otherwise putFromLoad could insert a stale entry
@@ -176,14 +176,13 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 		return e.setValue(value);
 	}
 
-	private void setFailed(PutKeyValueCommand command) {
+	private Object setFailed(InvocationContext ctx, PutKeyValueCommand command) {
 		// This sets command to be unsuccessful, since we don't want to replicate it to backup owner
 		command.setValueMatcher(ValueMatcher.MATCH_NEVER);
-		try {
-			command.perform(null);
-		}
-		catch (Throwable ignored) {
-		}
+		return invokeNextAndExceptionally( ctx, command, (rCtx, rCommand, throwable) -> {
+			// Ignore
+			return null;
+		} );
 	}
 
 	@Override
@@ -191,20 +190,22 @@ public class TombstoneCallInterceptor extends CallInterceptor {
 		Set<Flag> flags = command.getFlags();
 		int size = 0;
 		Map<Object, CacheEntry> contextEntries = ctx.getLookedUpEntries();
-		AdvancedCache decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
+		AdvancedCache<Object, Object> decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
 		// In non-transactional caches we don't care about context
-		CloseableIterable<CacheEntry<Object, Object>> iterable = decoratedCache
-				.filterEntries(Tombstone.EXCLUDE_TOMBSTONES);
+		CloseableIterator<CacheEntry<Object, Object>> it = Closeables.iterator(decoratedCache.cacheEntrySet().stream()
+				.filter(CacheFilters.predicate(Tombstone.EXCLUDE_TOMBSTONES)));
 		try {
-			for (CacheEntry<Object, Object> entry : iterable) {
+			while (it.hasNext()) {
+				CacheEntry<Object, Object> entry = it.next();
 				if (entry.getValue() != null && size++ == Integer.MAX_VALUE) {
 					return Integer.MAX_VALUE;
 				}
 			}
 		}
 		finally {
-			iterable.close();
+			it.close();
 		}
 		return size;
 	}
+
 }
