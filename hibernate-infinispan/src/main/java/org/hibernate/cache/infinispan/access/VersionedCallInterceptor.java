@@ -148,7 +148,7 @@ public class VersionedCallInterceptor extends DDAsyncInterceptor {
 		Set<Flag> flags = command.getFlags();
 		AdvancedCache decoratedCache = cache.getAdvancedCache().withFlags(flags != null ? flags.toArray(new Flag[flags.size()]) : null);
 		// In non-transactional caches we don't care about context
-		return CacheFilters.filterAndConvert(decoratedCache.entrySet().stream(),
+		return (int) CacheFilters.filterAndConvert(decoratedCache.entrySet().stream(),
 				new FilterNullValueConverter(VersionedEntry.EXCLUDE_EMPTY_EXTRACT_VALUE))
 				.count();
 	}

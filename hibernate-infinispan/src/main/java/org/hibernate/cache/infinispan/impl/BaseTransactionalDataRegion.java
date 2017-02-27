@@ -16,6 +16,7 @@ import org.hibernate.cache.infinispan.access.TombstoneAccessDelegate;
 import org.hibernate.cache.infinispan.access.TombstoneCallInterceptor;
 import org.hibernate.cache.infinispan.access.TxInvalidationCacheAccessDelegate;
 import org.hibernate.cache.infinispan.access.UnorderedDistributionInterceptor;
+import org.hibernate.cache.infinispan.access.UnorderedReplicationLogic;
 import org.hibernate.cache.infinispan.access.VersionedCallInterceptor;
 import org.hibernate.cache.infinispan.util.Caches;
 import org.hibernate.cache.infinispan.util.FutureUpdate;
@@ -32,11 +33,13 @@ import org.infinispan.commons.util.CloseableIterator;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.container.entries.CacheEntry;
+import org.infinispan.factories.ComponentRegistry;
 import org.infinispan.filter.KeyValueFilter;
 import org.infinispan.interceptors.AsyncInterceptorChain;
 import org.infinispan.interceptors.distribution.TriangleDistributionInterceptor;
 import org.infinispan.interceptors.impl.CallInterceptor;
 import org.infinispan.interceptors.distribution.NonTxDistributionInterceptor;
+import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
 
 import javax.transaction.TransactionManager;
@@ -158,9 +161,14 @@ public abstract class BaseTransactionalDataRegion
 		replaceCommonInterceptors();
 
 		VersionedCallInterceptor tombstoneCallInterceptor = new VersionedCallInterceptor(this, metadata.getVersionComparator());
-		cache.getComponentRegistry().registerComponent(tombstoneCallInterceptor, VersionedCallInterceptor.class);
+		ComponentRegistry compReg = cache.getComponentRegistry();
+		compReg.registerComponent(tombstoneCallInterceptor, VersionedCallInterceptor.class);
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
 		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
+
+		UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
+		compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
+		compReg.rewire();
 
 		strategy = Strategy.VERSIONED_ENTRIES;
 	}
@@ -178,9 +186,14 @@ public abstract class BaseTransactionalDataRegion
 		replaceCommonInterceptors();
 
 		TombstoneCallInterceptor tombstoneCallInterceptor = new TombstoneCallInterceptor(this);
-		cache.getComponentRegistry().registerComponent(tombstoneCallInterceptor, TombstoneCallInterceptor.class);
+		ComponentRegistry compReg = cache.getComponentRegistry();
+		compReg.registerComponent( tombstoneCallInterceptor, TombstoneCallInterceptor.class);
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
 		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
+
+		UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
+		compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
+		compReg.rewire();
 
 		strategy = Strategy.TOMBSTONES;
 	}
@@ -207,6 +220,7 @@ public abstract class BaseTransactionalDataRegion
 			throw new IllegalStateException("Misconfigured cache, interceptor chain is " + chain);
 		}
 		cache.removeInterceptor(NonTxDistributionInterceptor.class);
+		cache.removeInterceptor(TriangleDistributionInterceptor.class);
 	}
 
 	public long getTombstoneExpiration() {

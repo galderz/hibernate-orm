@@ -9,9 +9,11 @@ package org.hibernate.cache.infinispan.access;
 import org.infinispan.commands.VisitableCommand;
 import org.infinispan.commands.write.DataWriteCommand;
 import org.infinispan.context.InvocationContext;
+import org.infinispan.distribution.Ownership;
 import org.infinispan.interceptors.InvocationFinallyAction;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
 import org.infinispan.util.concurrent.TimeoutException;
+import org.infinispan.util.concurrent.locks.LockUtil;
 import org.infinispan.util.logging.Log;
 import org.infinispan.util.logging.LogFactory;
 
@@ -52,6 +54,15 @@ public class LockingInterceptor extends NonTransactionalLockingInterceptor {
 	@Override
 	protected Object visitDataWriteCommand(InvocationContext ctx, DataWriteCommand command) throws Throwable {
 		try {
+			if (log.isTraceEnabled()) {
+				Ownership ownership = LockUtil.getLockOwnership( command.getKey(), cdl );
+				log.tracef( "Am I owner for key=%s ? %s", command.getKey(), ownership);
+			}
+
+			if (ctx.getLockOwner() == null) {
+				ctx.setLockOwner( command.getCommandInvocationId() );
+			}
+
 			lockAndRecord(ctx, command.getKey(), getLockTimeoutMillis(command));
 		}
 		catch (Throwable t) {
