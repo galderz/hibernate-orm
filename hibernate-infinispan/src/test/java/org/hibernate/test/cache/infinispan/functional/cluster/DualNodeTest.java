@@ -26,6 +26,8 @@ import org.hibernate.test.cache.infinispan.util.InfinispanTestingSetup;
 import org.hibernate.test.cache.infinispan.util.TxUtil;
 import org.junit.ClassRule;
 
+import org.infinispan.marshall.core.ExternallyMarshallable;
+
 /**
  * @author Galder Zamarreño
  * @since 3.5
@@ -86,6 +88,7 @@ public abstract class DualNodeTest extends AbstractFunctionalTest {
 	@Override
 	public void startUp() {
 		super.startUp();
+		ExternallyMarshallable.addToWhiteList( "org.hibernate.cache" );
 		// In some cases tests are multi-threaded, so they have to join the group
 		infinispanTestIdentifier.joinContext();
 		secondNodeEnvironment = new SecondNodeEnvironment();

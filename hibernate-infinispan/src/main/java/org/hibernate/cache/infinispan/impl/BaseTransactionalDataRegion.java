@@ -6,6 +6,7 @@
  */
 package org.hibernate.cache.infinispan.impl;
 
+import org.hibernate.cache.CacheException;
 import org.hibernate.cache.infinispan.InfinispanRegionFactory;
 import org.hibernate.cache.infinispan.access.AccessDelegate;
 import org.hibernate.cache.infinispan.access.LockingInterceptor;
@@ -14,6 +15,7 @@ import org.hibernate.cache.infinispan.access.NonTxInvalidationCacheAccessDelegat
 import org.hibernate.cache.infinispan.access.PutFromLoadValidator;
 import org.hibernate.cache.infinispan.access.TombstoneAccessDelegate;
 import org.hibernate.cache.infinispan.access.TombstoneCallInterceptor;
+import org.hibernate.cache.infinispan.access.TombstoneMetadataInterceptor;
 import org.hibernate.cache.infinispan.access.TxInvalidationCacheAccessDelegate;
 import org.hibernate.cache.infinispan.access.UnorderedDistributionInterceptor;
 import org.hibernate.cache.infinispan.access.UnorderedReplicationLogic;
@@ -39,6 +41,7 @@ import org.infinispan.interceptors.AsyncInterceptorChain;
 import org.infinispan.interceptors.distribution.TriangleDistributionInterceptor;
 import org.infinispan.interceptors.impl.CallInterceptor;
 import org.infinispan.interceptors.distribution.NonTxDistributionInterceptor;
+import org.infinispan.interceptors.impl.EntryWrappingInterceptor;
 import org.infinispan.interceptors.locking.ClusteringDependentLogic;
 import org.infinispan.interceptors.locking.NonTransactionalLockingInterceptor;
 
@@ -125,7 +128,7 @@ public abstract class BaseTransactionalDataRegion
 
 		CacheMode cacheMode = cache.getCacheConfiguration().clustering().cacheMode();
 		if (accessType == AccessType.NONSTRICT_READ_WRITE) {
-			prepareForVersionedEntries();
+			prepareForVersionedEntries(cacheMode);
 			return new NonStrictAccessDelegate(this);
 		}
 		if (cacheMode.isDistributed() || cacheMode.isReplicated()) {
@@ -152,7 +155,7 @@ public abstract class BaseTransactionalDataRegion
 		strategy = Strategy.VALIDATION;
 	}
 
-	protected void prepareForVersionedEntries() {
+	protected void prepareForVersionedEntries(CacheMode cacheMode) {
 		if (strategy != null) {
 			assert strategy == Strategy.VERSIONED_ENTRIES;
 			return;
@@ -166,9 +169,11 @@ public abstract class BaseTransactionalDataRegion
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
 		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
 
-		UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
-		compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
-		compReg.rewire();
+		if (cacheMode.isClustered()) {
+			UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
+			compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
+			compReg.rewire();
+		}
 
 		strategy = Strategy.VERSIONED_ENTRIES;
 	}
@@ -190,6 +195,10 @@ public abstract class BaseTransactionalDataRegion
 		compReg.registerComponent( tombstoneCallInterceptor, TombstoneCallInterceptor.class);
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
 		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
+
+		TombstoneMetadataInterceptor tombstoneMetadataInterceptor = new TombstoneMetadataInterceptor( this );
+		compReg.registerComponent( tombstoneMetadataInterceptor, TombstoneMetadataInterceptor.class);
+		interceptorChain.addInterceptorBefore(tombstoneMetadataInterceptor, EntryWrappingInterceptor.class);
 
 		UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
 		compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
@@ -332,4 +341,12 @@ public abstract class BaseTransactionalDataRegion
 		}
 		return value != null;
 	}
+
+	@Override
+	public void destroy() throws CacheException {
+		super.destroy();
+		if (validator != null)
+			validator.destroy();
+	}
+
 }

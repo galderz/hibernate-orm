@@ -25,6 +25,7 @@ import org.hibernate.engine.spi.SharedSessionContractImplementor;
 import org.hibernate.resource.transaction.spi.TransactionCoordinator;
 
 import org.infinispan.AdvancedCache;
+import org.infinispan.Cache;
 import org.infinispan.configuration.cache.CacheMode;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.configuration.cache.ConfigurationBuilder;
@@ -97,7 +98,7 @@ public class PutFromLoadValidator {
 	 * Registry of expected, future, isPutValid calls. If a key+owner is registered in this map, it
 	 * is not a "naked put" and is allowed to proceed.
 	 */
-	private final ConcurrentMap<Object, PendingPutMap> pendingPuts;
+	private final Cache<Object, PendingPutMap> pendingPuts;
 
 	/**
 	 * Main cache where the entities/collections are stored. This is not modified from within this class.
@@ -149,7 +150,7 @@ public class PutFromLoadValidator {
 		ConfigurationBuilder configurationBuilder = new ConfigurationBuilder();
 		configurationBuilder.read(pendingPutsConfiguration);
 		configurationBuilder.dataContainer().keyEquivalence(cacheConfiguration.dataContainer().keyEquivalence());
-		String pendingPutsName = cache.getName() + "-" + InfinispanRegionFactory.DEF_PENDING_PUTS_RESOURCE;
+		String pendingPutsName = getPendingPutsName( cache );
 		cacheManager.defineConfiguration(pendingPutsName, configurationBuilder.build());
 
 		if (pendingPutsConfiguration.expiration() != null && pendingPutsConfiguration.expiration().maxIdle() > 0) {
@@ -171,6 +172,12 @@ public class PutFromLoadValidator {
 
 		this.cache = cache;
 		this.pendingPuts = cacheManager.getCache(pendingPutsName);
+		// The session factory might have been closed but it uses a pre-existing cache manager, so start just in case
+		this.pendingPuts.start();
+	}
+
+	private String getPendingPutsName(AdvancedCache cache) {
+		return cache.getName() + "-" + InfinispanRegionFactory.DEF_PENDING_PUTS_RESOURCE;
 	}
 
 	/**
@@ -260,6 +267,11 @@ public class PutFromLoadValidator {
 
 	public void resetCurrentSession() {
 		currentSession.remove();
+	}
+
+	public void destroy() {
+		pendingPuts.stop();
+		pendingPuts.getCacheManager().undefineConfiguration( pendingPuts.getName() );
 	}
 
 	/**
@@ -656,6 +668,12 @@ public class PutFromLoadValidator {
 	// we can't use SessionImpl.toString() concurrently
 	private static String lockOwnerToString(Object lockOwner) {
 		return lockOwner instanceof SharedSessionContractImplementor ? "Session#" + lockOwner.hashCode() : lockOwner.toString();
+	}
+
+	public void remotePendingPutsCache() {
+		String pendingPutsName = getPendingPutsName( cache );
+		EmbeddedCacheManager cm = cache.getCacheManager();
+		cm.removeCache( pendingPutsName );
 	}
 
 	/**

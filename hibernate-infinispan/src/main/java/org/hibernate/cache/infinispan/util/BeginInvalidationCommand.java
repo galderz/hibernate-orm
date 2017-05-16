@@ -74,7 +74,7 @@ public class BeginInvalidationCommand extends InvalidateCommand {
 
 	@Override
 	public String toString() {
-		return "BeginInvalidateCommand{keys=" + Arrays.toString(keys) +
+		return "BeginInvalidationCommand{keys=" + Arrays.toString(keys) +
 				", sessionTransactionId=" + lockOwner + '}';
 	}
 }

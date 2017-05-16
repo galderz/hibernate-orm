@@ -6,6 +6,8 @@
  */
 package org.hibernate.cache.infinispan.access;
 
+import java.util.concurrent.TimeUnit;
+
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.infinispan.impl.BaseTransactionalDataRegion;
 import org.hibernate.cache.infinispan.util.Caches;
@@ -20,6 +22,8 @@ import org.hibernate.resource.transaction.spi.TransactionCoordinator;
 import org.infinispan.AdvancedCache;
 import org.infinispan.configuration.cache.Configuration;
 import org.infinispan.context.Flag;
+import org.infinispan.metadata.EmbeddedMetadata;
+import org.infinispan.metadata.Metadata;
 
 /**
  * @author Radim Vansa &lt;rvansa@redhat.com&gt;

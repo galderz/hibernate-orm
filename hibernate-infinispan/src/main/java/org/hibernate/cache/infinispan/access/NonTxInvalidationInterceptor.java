@@ -81,8 +81,7 @@ public class NonTxInvalidationInterceptor extends BaseInvalidationInterceptor {
 				log.failedInvalidatePendingPut(command.getKey(), cacheName);
 			}
 			RemoveCommand removeCommand = commandsFactory.buildRemoveCommand(command.getKey(), null, command.getFlagsBitSet());
-
-			return invokeNextAndHandle( ctx, removeCommand, new InvalidateAndReturnFunction(isTransactional) );
+			return invokeNextAndHandle( ctx, removeCommand, new InvalidateAndReturnFunction(isTransactional, command.getKeyLockOwner()) );
 		}
 	}
 
@@ -103,7 +102,7 @@ public class NonTxInvalidationInterceptor extends BaseInvalidationInterceptor {
 			log.trace("This is an eviction, not invalidating anything");
 		}
 
-		return invokeNextAndHandle( ctx, command, new InvalidateAndReturnFunction(isTransactional) );
+		return invokeNextAndHandle( ctx, command, new InvalidateAndReturnFunction(isTransactional, command.getKeyLockOwner()) );
 	}
 
 	@Override
@@ -123,14 +122,15 @@ public class NonTxInvalidationInterceptor extends BaseInvalidationInterceptor {
 		throw new UnsupportedOperationException("Unexpected putAll");
 	}
 
-	private <T extends WriteCommand & RemoteLockCommand> void invalidateAcrossCluster(T command, boolean isTransactional, Object key) throws Throwable {
+	private <T extends WriteCommand & RemoteLockCommand> void invalidateAcrossCluster(
+			T command, boolean isTransactional, Object key, Object keyLockOwner) throws Throwable {
 		// increment invalidations counter if statistics maintained
 		incrementInvalidations();
 		InvalidateCommand invalidateCommand;
 		if (!isLocalModeForced(command)) {
 			if (isTransactional) {
 				invalidateCommand = commandInitializer.buildBeginInvalidationCommand(
-						EnumUtil.EMPTY_BIT_SET, new Object[] { key }, command.getKeyLockOwner());
+						EnumUtil.EMPTY_BIT_SET, new Object[] { key }, keyLockOwner);
 			}
 			else {
 				invalidateCommand = commandsFactory.buildInvalidateCommand(EnumUtil.EMPTY_BIT_SET, new Object[] {key });
@@ -151,9 +151,11 @@ public class NonTxInvalidationInterceptor extends BaseInvalidationInterceptor {
 	class InvalidateAndReturnFunction implements InvocationFinallyFunction {
 
 		final boolean isTransactional;
+		final Object keyLockOwner;
 
-		InvalidateAndReturnFunction(boolean isTransactional) {
+		InvalidateAndReturnFunction(boolean isTransactional, Object keyLockOwner) {
 			this.isTransactional = isTransactional;
+			this.keyLockOwner = keyLockOwner;
 		}
 
 		@Override
@@ -161,7 +163,7 @@ public class NonTxInvalidationInterceptor extends BaseInvalidationInterceptor {
 				throws Throwable {
 			RemoveCommand removeCmd = (RemoveCommand) rCommand;
 			if ( removeCmd.isSuccessful()) {
-				invalidateAcrossCluster(removeCmd, isTransactional, removeCmd.getKey());
+				invalidateAcrossCluster(removeCmd, isTransactional, removeCmd.getKey(), keyLockOwner);
 			}
 			return rv;
 		}
