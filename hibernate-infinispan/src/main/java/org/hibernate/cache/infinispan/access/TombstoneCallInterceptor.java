@@ -79,7 +79,7 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 				return handleTombstoneUpdate(ctx, e, (TombstoneUpdate) value, command);
 			}
 			else if (value instanceof Tombstone) {
-				return handleTombstone(e, (Tombstone) value);
+				return handleTombstone(e, (Tombstone) value, command);
 			}
 			else if (value instanceof FutureUpdate) {
 				return handleFutureUpdate(ctx, e, (FutureUpdate) value, command);
@@ -99,7 +99,7 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 			// Note that the update has to keep tombstone even if the transaction was unsuccessful;
 			// before write we have removed the value and we have to protect the entry against stale putFromLoads
 			Tombstone tombstone = (Tombstone) storedValue;
-			setValue(e, tombstone.applyUpdate(futureUpdate.getUuid(), futureUpdate.getTimestamp(), futureUpdate.getValue()));
+			setValue(e, tombstone.applyUpdate(futureUpdate.getUuid(), futureUpdate.getTimestamp(), futureUpdate.getValue()), command);
 
 		}
 		else {
@@ -112,14 +112,14 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 		return null;
 	}
 
-	private Object handleTombstone(MVCCEntry e, Tombstone tombstone) {
+	private Object handleTombstone(MVCCEntry e, Tombstone tombstone, PutKeyValueCommand command) {
 		// Tombstones always come with lifespan in metadata
 		Object storedValue = e.getValue();
 		if (storedValue instanceof Tombstone) {
-			setValue(e, ((Tombstone) storedValue).merge(tombstone));
+			setValue(e, ((Tombstone) storedValue).merge(tombstone), command);
 		}
 		else {
-			setValue(e, tombstone);
+			setValue(e, tombstone, command);
 		}
 		return null;
 	}
@@ -136,19 +136,19 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 			else {
 				// We have to keep Tombstone, because otherwise putFromLoad could insert a stale entry
 				// (after it has been already updated and *then* evicted)
-				setValue(e, new Tombstone(ZERO, tombstoneUpdate.getTimestamp()));
+				setValue(e, new Tombstone(ZERO, tombstoneUpdate.getTimestamp()), command);
 			}
 		}
 		else if (storedValue instanceof Tombstone) {
 			Tombstone tombstone = (Tombstone) storedValue;
 			if (tombstone.getLastTimestamp() < tombstoneUpdate.getTimestamp()) {
-				setValue(e, value);
+				setValue(e, value, command);
 			}
 		}
 		else if (storedValue == null) {
 			// async putFromLoads shouldn't cross the invalidation timestamp
 			if (region.getLastRegionInvalidation() < tombstoneUpdate.getTimestamp()) {
-				setValue(e, value);
+				setValue(e, value, command);
 			}
 		}
 		else {
@@ -158,7 +158,7 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 		return null;
 	}
 
-	private Object setValue(MVCCEntry e, Object value) {
+	private Object setValue(MVCCEntry e, Object value, PutKeyValueCommand command) {
 		if (e.isRemoved()) {
 			e.setRemoved(false);
 			e.setCreated(true);
@@ -168,9 +168,11 @@ public class TombstoneCallInterceptor extends DDAsyncInterceptor {
 			e.setChanged(true);
 		}
 		if (value instanceof Tombstone) {
+			command.setMetadata( expiringMetadata );
 			e.setMetadata(expiringMetadata);
 		}
 		else {
+			command.setMetadata( defaultMetadata );
 			e.setMetadata(defaultMetadata);
 		}
 		return e.setValue(value);

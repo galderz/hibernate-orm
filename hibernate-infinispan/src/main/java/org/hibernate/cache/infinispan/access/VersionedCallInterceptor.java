@@ -100,14 +100,14 @@ public class VersionedCallInterceptor extends DDAsyncInterceptor {
 
 		if (newVersion == null) {
 			// eviction or post-commit removal: we'll store it with given timestamp
-			setValue(e, newValue, expiringMetadata);
+			setValue(e, newValue, expiringMetadata, command);
 			return null;
 		}
 		if (oldVersion == null) {
 			assert oldValue == null || oldTimestamp != Long.MIN_VALUE;
 			if (newTimestamp == Long.MIN_VALUE) {
 				// remove, knowing the version
-				setValue(e, newValue, expiringMetadata);
+				setValue(e, newValue, expiringMetadata, command);
 			}
 			else if (newTimestamp <= oldTimestamp) {
 				// either putFromLoad or regular update/insert - in either case this update might come
@@ -116,21 +116,21 @@ public class VersionedCallInterceptor extends DDAsyncInterceptor {
 				assert oldValue == null;
 			}
 			else {
-				setValue(e, newValue, defaultMetadata);
+				setValue(e, newValue, defaultMetadata, command);
 			}
 			return null;
 		}
 		int compareResult = versionComparator.compare(newVersion, oldVersion);
 		if (isRemoval && compareResult >= 0) {
-			setValue(e, newValue, expiringMetadata);
+			setValue(e, newValue, expiringMetadata, command);
 		}
 		else if (compareResult > 0) {
-			setValue(e, actualNewValue, defaultMetadata);
+			setValue(e, actualNewValue, defaultMetadata, command);
 		}
 		return null;
 	}
 
-	private Object setValue(MVCCEntry e, Object value, Metadata metadata) {
+	private Object setValue(MVCCEntry e, Object value, Metadata metadata, PutKeyValueCommand command) {
 		if (e.isRemoved()) {
 			e.setRemoved(false);
 			e.setCreated(true);
@@ -139,6 +139,7 @@ public class VersionedCallInterceptor extends DDAsyncInterceptor {
 		else {
 			e.setChanged(true);
 		}
+		command.setMetadata( metadata );
 		e.setMetadata(metadata);
 		return e.setValue(value);
 	}

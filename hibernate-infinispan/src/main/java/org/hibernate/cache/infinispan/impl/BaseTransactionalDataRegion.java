@@ -15,7 +15,6 @@ import org.hibernate.cache.infinispan.access.NonTxInvalidationCacheAccessDelegat
 import org.hibernate.cache.infinispan.access.PutFromLoadValidator;
 import org.hibernate.cache.infinispan.access.TombstoneAccessDelegate;
 import org.hibernate.cache.infinispan.access.TombstoneCallInterceptor;
-import org.hibernate.cache.infinispan.access.TombstoneMetadataInterceptor;
 import org.hibernate.cache.infinispan.access.TxInvalidationCacheAccessDelegate;
 import org.hibernate.cache.infinispan.access.UnorderedDistributionInterceptor;
 import org.hibernate.cache.infinispan.access.UnorderedReplicationLogic;
@@ -163,11 +162,11 @@ public abstract class BaseTransactionalDataRegion
 
 		replaceCommonInterceptors();
 
-		VersionedCallInterceptor tombstoneCallInterceptor = new VersionedCallInterceptor(this, metadata.getVersionComparator());
+		VersionedCallInterceptor versionedCallInterceptor = new VersionedCallInterceptor(this, metadata.getVersionComparator());
 		ComponentRegistry compReg = cache.getComponentRegistry();
-		compReg.registerComponent(tombstoneCallInterceptor, VersionedCallInterceptor.class);
+		compReg.registerComponent(versionedCallInterceptor, VersionedCallInterceptor.class);
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
-		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
+		interceptorChain.addInterceptorBefore(versionedCallInterceptor, CallInterceptor.class);
 
 		if (cacheMode.isClustered()) {
 			UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
@@ -195,10 +194,6 @@ public abstract class BaseTransactionalDataRegion
 		compReg.registerComponent( tombstoneCallInterceptor, TombstoneCallInterceptor.class);
 		AsyncInterceptorChain interceptorChain = cache.getAsyncInterceptorChain();
 		interceptorChain.addInterceptorBefore(tombstoneCallInterceptor, CallInterceptor.class);
-
-		TombstoneMetadataInterceptor tombstoneMetadataInterceptor = new TombstoneMetadataInterceptor( this );
-		compReg.registerComponent( tombstoneMetadataInterceptor, TombstoneMetadataInterceptor.class);
-		interceptorChain.addInterceptorBefore(tombstoneMetadataInterceptor, EntryWrappingInterceptor.class);
 
 		UnorderedReplicationLogic replLogic = new UnorderedReplicationLogic();
 		compReg.registerComponent( replLogic, ClusteringDependentLogic.class );
@@ -345,8 +340,9 @@ public abstract class BaseTransactionalDataRegion
 	@Override
 	public void destroy() throws CacheException {
 		super.destroy();
-		if (validator != null)
+		if (validator != null) {
 			validator.destroy();
+		}
 	}
 
 }

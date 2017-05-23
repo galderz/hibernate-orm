@@ -17,6 +17,7 @@ import javax.transaction.Synchronization;
 import org.hibernate.PessimisticLockException;
 import org.hibernate.Session;
 import org.hibernate.StaleStateException;
+import org.hibernate.cache.infinispan.access.VersionedCallInterceptor;
 import org.hibernate.cache.infinispan.impl.BaseTransactionalDataRegion;
 import org.hibernate.cache.infinispan.util.Caches;
 import org.hibernate.cache.infinispan.util.VersionedEntry;
@@ -31,7 +32,8 @@ import org.infinispan.commands.write.PutKeyValueCommand;
 import org.infinispan.commons.util.ByRef;
 import org.infinispan.context.Flag;
 import org.infinispan.context.InvocationContext;
-import org.infinispan.interceptors.base.BaseCustomInterceptor;
+import org.infinispan.interceptors.AsyncInterceptorChain;
+import org.infinispan.interceptors.DDAsyncInterceptor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -262,8 +264,9 @@ public class VersionedTest extends AbstractNonInvalidationTest {
       AtomicBoolean committing = new AtomicBoolean(false);
       CollectionUpdateTestInterceptor collectionUpdateTestInterceptor = new CollectionUpdateTestInterceptor(putFromLoadLatch);
       AnotherCollectionUpdateTestInterceptor anotherInterceptor = new AnotherCollectionUpdateTestInterceptor(putFromLoadLatch, committing);
-      collectionCache.addInterceptor(collectionUpdateTestInterceptor, collectionCache.getInterceptorChain().size() - 1);
-      collectionCache.addInterceptor(anotherInterceptor, 0);
+      AsyncInterceptorChain interceptorChain = collectionCache.getAsyncInterceptorChain();
+      interceptorChain.addInterceptorBefore( collectionUpdateTestInterceptor, VersionedCallInterceptor.class );
+      interceptorChain.addInterceptor(anotherInterceptor, 0);
 
       TIME_SERVICE.advance(1);
       Future<Boolean> addFuture = executor.submit(() -> withTxSessionApply(s -> {
@@ -285,13 +288,13 @@ public class VersionedTest extends AbstractNonInvalidationTest {
 
       addFuture.get();
       readFuture.get();
-      collectionCache.removeInterceptor(CollectionUpdateTestInterceptor.class);
-      collectionCache.removeInterceptor(AnotherCollectionUpdateTestInterceptor.class);
+      interceptorChain.removeInterceptor(CollectionUpdateTestInterceptor.class);
+      interceptorChain.removeInterceptor(AnotherCollectionUpdateTestInterceptor.class);
 
       withTxSession(s -> assertFalse(s.load(Item.class, itemId).getOtherItems().isEmpty()));
    }
 
-   private class CollectionUpdateTestInterceptor extends BaseCustomInterceptor {
+   private class CollectionUpdateTestInterceptor extends DDAsyncInterceptor {
       final AtomicBoolean firstPutFromLoad = new AtomicBoolean(true);
       final CountDownLatch putFromLoadLatch;
       final CountDownLatch updateLatch = new CountDownLatch(1);
@@ -312,7 +315,7 @@ public class VersionedTest extends AbstractNonInvalidationTest {
       }
    }
 
-   private class AnotherCollectionUpdateTestInterceptor extends BaseCustomInterceptor {
+   private class AnotherCollectionUpdateTestInterceptor extends DDAsyncInterceptor {
       final CountDownLatch putFromLoadLatch;
       final AtomicBoolean committing;
 
