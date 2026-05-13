@@ -31,7 +31,7 @@ public final class Version {
 	 * @return The Hibernate version
 	 */
 	public static String getVersionString() {
-		return VERSION;
+		return VERSION + " [CUSTOM-BUILD-MARKER]";
 	}
 
 	/**
