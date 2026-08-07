@@ -66,7 +66,6 @@ import org.hibernate.engine.jdbc.spi.JdbcServices;
 import org.hibernate.engine.spi.CollectionKey;
 import org.hibernate.engine.spi.EntityKey;
 import org.hibernate.engine.spi.TemporalCollectionKey;
-import org.hibernate.engine.spi.TemporalEntityKey;
 import org.hibernate.engine.spi.ExceptionConverter;
 import org.hibernate.engine.spi.LoadQueryInfluencers;
 import org.hibernate.engine.spi.SessionEventListenerManager;
@@ -1538,7 +1537,7 @@ abstract class AbstractSharedSessionContract
 		final Object temporalId = getLoadQueryInfluencers().getTemporalIdentifier();
 		return temporalId != null
 			&& temporalId != AuditLog.ALL_CHANGESETS
-				? new TemporalEntityKey( id, persister, temporalId )
+				? new EntityKey( id, persister, temporalId )
 				: new EntityKey( id, persister );
 	}
 

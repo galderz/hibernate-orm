@@ -33,7 +33,6 @@ import org.hibernate.engine.spi.CascadingActions;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityHolder;
 import org.hibernate.engine.spi.EntityKey;
-import org.hibernate.engine.spi.TemporalEntityKey;
 import org.hibernate.engine.spi.EntityUniqueKey;
 import org.hibernate.engine.spi.FetchOptions;
 import org.hibernate.engine.spi.PersistenceContext;
@@ -870,7 +869,7 @@ public class EntityInitializerImpl
 		}
 		final Object changesetId = resolveChangesetId( data );
 		data.entityKey = changesetId != null
-				? new TemporalEntityKey( id, concreteDescriptor, changesetId )
+				? new EntityKey( id, concreteDescriptor, changesetId )
 				: new EntityKey( id, concreteDescriptor );
 	}
 
