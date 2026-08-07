@@ -33,11 +33,12 @@ import static org.hibernate.pretty.MessageHelper.infoString;
  * @author Gavin King
  * @author Sanne Grinovero
  */
-public sealed class EntityKey implements Serializable permits TemporalEntityKey {
+public value class EntityKey implements Serializable {
 
 	private final Object identifier;
 	private final int hashCode;
 	private final EntityPersister persister;
+	@Nullable private final Object changesetId;
 
 	/**
 	 * Construct a unique identifier for an entity class instance.
@@ -51,19 +52,30 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 	 * @param persister The entity persister
 	 */
 	public EntityKey(@Nullable Object id, EntityPersister persister) {
-		this( id, persister, 0 );
+		this( id, persister, 0, null );
 	}
 
 	/**
 	 * @param changesetIdHashCode hash code contribution from the changeset identifier
 	 */
-	EntityKey(@Nullable Object id, EntityPersister persister, int changesetIdHashCode) {
+	EntityKey(@Nullable Object id, EntityPersister persister, int changesetIdHashCode, Object changesetId) {
 		this.persister = persister;
 		if ( id == null ) {
 			throw new AssertionFailure( "null identifier (" + persister.getEntityName() + ")" );
 		}
 		this.identifier = id;
 		this.hashCode = generateHashCode( id, persister, changesetIdHashCode );
+		this.changesetId = changesetId;
+	}
+
+	/**
+	 * Temporal entity key
+	 * @param id
+	 * @param persister
+	 * @param changesetId
+	 */
+	public EntityKey(@Nullable Object id, EntityPersister persister, Object changesetId) {
+		this( id, persister, changesetId.hashCode(), changesetId );
 	}
 
 	private static int generateHashCode(Object id, EntityPersister persister, int changesetIdHashCode) {
@@ -102,14 +114,14 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 	 * When non-null, this entity is a read-only historical snapshot.
 	 */
 	public @Nullable Object getChangesetId() {
-		return null;
+		return changesetId;
 	}
 
 	/**
 	 * Whether this key refers to a temporal (historical) snapshot.
 	 */
 	public boolean isTemporal() {
-		return false;
+		return changesetId != null;
 	}
 
 	@Override
@@ -139,11 +151,11 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 	 * instanceof on the sealed hierarchy for optimal JIT performance.
 	 */
 	private boolean sameChangesetId(final EntityKey otherKey) {
-		if ( this instanceof TemporalEntityKey t1 ) {
-			return otherKey instanceof TemporalEntityKey t2
-					&& t1.getChangesetId().equals( t2.getChangesetId() );
+		if ( this.isTemporal() ) {
+			return otherKey.isTemporal()
+					&& this.getChangesetId().equals( otherKey.getChangesetId() );
 		}
-		return !( otherKey instanceof TemporalEntityKey );
+		return !( otherKey.isTemporal() );
 	}
 
 	private boolean samePersistentType(final EntityKey otherKey) {
@@ -195,7 +207,7 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 				sessionFactory.getMappingMetamodel()
 						.getEntityDescriptor( entityName );
 		return changesetId != null
-				? new TemporalEntityKey( id, entityPersister, changesetId )
+				? new EntityKey( id, entityPersister, changesetId )
 				: new EntityKey( id, entityPersister );
 	}
 }
