@@ -105,7 +105,7 @@ public class StatelessFindByKeyOperation<T> extends AbstractFindByKeyOperation<T
 				null,
 				getNullSafeLockMode(),
 				getEntityDescriptor(),
-				new EntityKey( key, getEntityDescriptor() )
+				EntityKey.of( key, getEntityDescriptor() )
 		);
 	}
 

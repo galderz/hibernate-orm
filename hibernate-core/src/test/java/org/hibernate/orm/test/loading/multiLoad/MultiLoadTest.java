@@ -655,7 +655,7 @@ public class MultiLoadTest {
 
 	@Test
 	public void testMultiLoadClearsBatchFetchQueue(SessionFactoryScope scope) {
-		final EntityKey entityKey = new EntityKey(
+		final EntityKey entityKey = EntityKey.of(
 				1,
 				scope.getSessionFactory().getMappingMetamodel().getEntityDescriptor( SimpleEntity.class.getName() )
 		);

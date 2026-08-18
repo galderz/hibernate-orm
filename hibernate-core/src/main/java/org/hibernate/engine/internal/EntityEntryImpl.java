@@ -253,7 +253,7 @@ public final class EntityEntryImpl implements Serializable, EntityEntry {
 			if ( id == null ) {
 				throw new IllegalStateException( "cannot generate an EntityKey when id is null.");
 			}
-			cachedEntityKey = new EntityKey( id, persister );
+			cachedEntityKey = EntityKey.of( id, persister );
 		}
 		return cachedEntityKey;
 	}

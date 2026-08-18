@@ -40,7 +40,7 @@ public class InsertCoordinatorAudit extends AbstractAuditCoordinator implements 
 		final var entityEntry = session.getPersistenceContextInternal().getEntry( entity );
 		final var entityKey = entityEntry != null
 				? entityEntry.getEntityKey()
-				: new EntityKey( entityPersister().getIdentifier( entity, session ), entityPersister() );
+				: EntityKey.of( entityPersister().getIdentifier( entity, session ), entityPersister() );
 		enqueueAuditEntry( entityKey, entity, values, ModificationType.ADD, session );
 		return generatedValues;
 	}

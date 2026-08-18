@@ -132,7 +132,7 @@ public abstract class AbstractMultiNaturalIdLoader<E> implements MultiNaturalIdL
 		final var descriptor = getEntityDescriptor();
 		final Object id = context.getNaturalIdResolutions().findCachedIdByNaturalId( naturalId, descriptor );
 		// id can be null if a non-existent natural id is requested, or a mutable natural id was changed and then deleted
-		return id == null ? null : context.getEntity( new EntityKey( id, descriptor.getEntityPersister() ) );
+		return id == null ? null : context.getEntity( EntityKey.of( id, descriptor.getEntityPersister() ) );
 	}
 
 	private <K> Object[] checkPersistenceContextForCachedResults(
