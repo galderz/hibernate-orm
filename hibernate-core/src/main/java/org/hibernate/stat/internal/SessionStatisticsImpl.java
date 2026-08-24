@@ -32,7 +32,12 @@ public class SessionStatisticsImpl implements SessionStatistics {
 	}
 
 	public Set<?> getEntityKeys() {
-		return unmodifiableSet( persistenceContext.getEntitiesByKey().keySet() );
+		final var map = persistenceContext.getEntitiesByKey();
+		final java.util.Set<org.hibernate.engine.spi.EntityKey> keys = new java.util.HashSet<>( map.size() );
+		for ( var entry : map.entrySet() ) {
+			keys.add( entry.getKey() );
+		}
+		return unmodifiableSet( keys );
 	}
 
 	public Set<?> getCollectionKeys() {

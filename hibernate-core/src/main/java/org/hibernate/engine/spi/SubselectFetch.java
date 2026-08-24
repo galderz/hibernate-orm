@@ -5,10 +5,8 @@
 package org.hibernate.engine.spi;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.hibernate.internal.util.NullnessUtil;
 import org.hibernate.spi.NavigablePath;
@@ -29,14 +27,14 @@ public class SubselectFetch {
 	private final TableGroup ownerTableGroup;
 	private final JdbcParametersList loadingJdbcParameters;
 	private final JdbcParameterBindings loadingJdbcParameterBindings;
-	private final Set<EntityKey> resultingEntityKeys;
+	private final EntityKeySet resultingEntityKeys;
 
 	public SubselectFetch(
 			QuerySpec loadingSqlAst,
 			TableGroup ownerTableGroup,
 			JdbcParametersList loadingJdbcParameters,
 			JdbcParameterBindings loadingJdbcParameterBindings,
-			Set<EntityKey> resultingEntityKeys) {
+			EntityKeySet resultingEntityKeys) {
 		this.loadingSqlAst = loadingSqlAst;
 		this.ownerTableGroup = ownerTableGroup;
 		this.loadingJdbcParameters = loadingJdbcParameters;
@@ -77,7 +75,7 @@ public class SubselectFetch {
 	 * <p>
 	 * Used for "empty collection" handling mostly
 	 */
-	public Set<EntityKey> getResultingEntityKeys() {
+	public EntityKeySet getResultingEntityKeys() {
 		return resultingEntityKeys;
 	}
 
@@ -159,10 +157,10 @@ public class SubselectFetch {
 										.findTableGroup( entityInitializer.getNavigablePath() ),
 								loadingJdbcParameters,
 								loadingJdbcParameterBindings,
-								new HashSet<>()
+								new EntityKeySet()
 						)
 				);
-				subselectFetch.resultingEntityKeys.add( holder.getEntityKey() );
+				subselectFetch.resultingEntityKeys.add( holder.getDescriptor(), holder.getEntityKey() );
 				batchFetchQueue.addSubselect( holder.getEntityKey(), subselectFetch );
 			}
 		}

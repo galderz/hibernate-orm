@@ -40,6 +40,8 @@ import org.hibernate.engine.spi.CollectionKey;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityHolder;
 import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.EntityKeyMap;
+import org.hibernate.engine.spi.EntityKeySet;
 import org.hibernate.engine.spi.EntityUniqueKey;
 import org.hibernate.engine.spi.ManagedEntity;
 import org.hibernate.engine.spi.NaturalIdResolutions;
@@ -117,7 +119,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	// costs are very often the dominating cost of an application using ORM.
 
 	// Loaded entity instances, by EntityKey
-	private HashMap<EntityKey, EntityHolderImpl> entitiesByKey;
+	private EntityKeyMap<EntityHolderImpl> entitiesByKey;
 
 	// New entity holder cached instance
 	private EntityHolderImpl newEntityHolder;
@@ -127,7 +129,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	// Snapshots of the current database state for entities
 	// that have *not* been loaded
-	private HashMap<EntityKey, Object> entitySnapshotsByKey;
+	private EntityKeyMap<Object> entitySnapshotsByKey;
 
 	// Identity map of array holder ArrayHolder instances, by the array instance
 	private IdentityHashMap<Object, PersistentCollection<?>> arrayHolders;
@@ -142,10 +144,10 @@ class StatefulPersistenceContext implements PersistenceContext {
 	private HashMap<CollectionKey, PersistentCollection<?>> collectionsByKey;
 
 	// Set of EntityKeys of deleted objects
-	private HashSet<EntityKey> nullifiableEntityKeys;
+	private EntityKeySet nullifiableEntityKeys;
 
 	// Set of EntityKeys of deleted unloaded proxies
-	private HashSet<EntityKey> deletedUnloadedEntityKeys;
+	private EntityKeySet deletedUnloadedEntityKeys;
 
 	// properties that we have tried to load and not found in the database
 	private HashSet<AssociationKey> nullAssociations;
@@ -183,9 +185,9 @@ class StatefulPersistenceContext implements PersistenceContext {
 		this.entityEntryContext = new EntityEntryContext( this );
 	}
 
-	private Map<EntityKey, EntityHolderImpl> getOrInitializeEntitiesByKey() {
+	private EntityKeyMap<EntityHolderImpl> getOrInitializeEntitiesByKey() {
 		if ( entitiesByKey == null ) {
-			entitiesByKey = mapOfSize( INIT_COLL_SIZE );
+			entitiesByKey = new EntityKeyMap<>( INIT_COLL_SIZE );
 		}
 		return entitiesByKey;
 	}
@@ -320,13 +322,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 	@Override
 	public Object[] getDatabaseSnapshot(Object id, EntityPersister persister) throws HibernateException {
 		final var key = session.generateEntityKey( id, persister );
-		final Object cached = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( key );
+		final Object cached = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( persister, key );
 		if ( cached != null ) {
 			return cached == NO_ROW ? null : (Object[]) cached;
 		}
 		else {
 			final Object[] snapshot = persister.getDatabaseSnapshot( id, session );
-			getOrInitializeEntitySnapshotsByKey().put( key, snapshot == null ? NO_ROW : snapshot );
+			getOrInitializeEntitySnapshotsByKey().put( persister, key, snapshot == null ? NO_ROW : snapshot );
 			return snapshot;
 		}
 	}
@@ -376,7 +378,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public Object[] getCachedDatabaseSnapshot(EntityKey key) {
-		final Object snapshot = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( key );
+		final Object snapshot = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( key.getPersister(), key );
 		if ( snapshot == NO_ROW ) {
 			throw new IllegalStateException(
 					"persistence context reported no row snapshot for "
@@ -394,7 +396,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			EntityInitializer<?> initializer) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
 		var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key, newEntityHolder );
+		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, newEntityHolder );
 		if ( oldHolder != null ) {
 			// An initializer can't claim an entity holder if it's already initialized
 			if ( oldHolder.isInitialized() ) {
@@ -424,12 +426,12 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public @Nullable EntityHolder getEntityHolder(EntityKey key) {
-		return entitiesByKey == null ? null : entitiesByKey.get( key );
+		return entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
 	}
 
 	@Override
 	public boolean containsEntityHolder(EntityKey key) {
-		return entitiesByKey != null && entitiesByKey.get( key ) != null;
+		return entitiesByKey != null && entitiesByKey.get( key.getPersister(), key ) != null;
 	}
 
 	@Override
@@ -467,7 +469,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			// It's possible that we tried to load an entity and found out it doesn't exist,
 			// in which case we added an entry with a null proxy and entity.
 			// Remove that empty entry on post load to avoid unwanted side effects
-			entitiesByKey.remove( holder.getEntityKey() );
+			entitiesByKey.remove( holder.getDescriptor(), holder.getEntityKey() );
 		}
 		else {
 			if ( postLoadEvent != null ) {
@@ -493,7 +495,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	public EntityHolder addEntityHolder(EntityKey key, Object entity) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
 		var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key, holder );
+		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
 		if ( oldHolder != null ) {
 			if ( oldHolder.proxy != null && oldHolder.entity == null ) {
 				// When there was a proxy before, we have to set the implementation of the proxy to the new entity
@@ -517,13 +519,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public Object getEntity(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key );
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
 		return holder == null || holder.state == EntityHolderState.UNINITIALIZED ? null : holder.entity;
 	}
 
 	@Override
 	public boolean containsEntity(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key );
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
 		return holder != null && holder.entity != null && holder.state != EntityHolderState.UNINITIALIZED;
 	}
 
@@ -535,7 +537,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			if ( holder.proxy != null ) {
 				holder.entity = null;
 				holder.state = EntityHolderState.UNINITIALIZED;
-				entitiesByKey.put( key, holder );
+				entitiesByKey.put( key.getPersister(), key, holder );
 			}
 			return entity;
 		}
@@ -552,10 +554,10 @@ class StatefulPersistenceContext implements PersistenceContext {
 		// Clear all parent cache
 		parentsByChild = null;
 		if ( entitySnapshotsByKey != null ) {
-			entitySnapshotsByKey.remove( key );
+			entitySnapshotsByKey.remove( key.getPersister(), key );
 		}
 		if ( nullifiableEntityKeys != null ) {
-			nullifiableEntityKeys.remove( key );
+			nullifiableEntityKeys.remove( key.getPersister(), key );
 		}
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
@@ -567,7 +569,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	private EntityHolderImpl findHolder(EntityKey key) {
 		if ( entitiesByKey != null ) {
-			final var holder = entitiesByKey.remove( key );
+			final var holder = entitiesByKey.remove( key.getPersister(), key );
 			if ( entitiesByUniqueKey != null ) {
 				final Object entity = holder == null ? null : holder.entity;
 				final var itr = entitiesByUniqueKey.values().iterator();
@@ -762,7 +764,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			final var key = session.generateEntityKey( li.getInternalIdentifier(), persister );
 			final var holder = getOrInitializeNewHolder().withProxy( key, persister, proxy );
 			// any earlier proxy takes precedence
-			final var oldHolder = getOrInitializeEntitiesByKey().putIfAbsent( key, holder );
+			final var oldHolder = getOrInitializeEntitiesByKey().putIfAbsent( persister, key, holder );
 			if ( oldHolder != null ) {
 				if ( oldHolder.proxy == null ) {
 					oldHolder.proxy = proxy;
@@ -854,7 +856,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	private Object removeProxyByKey(final EntityKey key) {
 		if ( entitiesByKey != null ) {
-			final var entityHolder = entitiesByKey.get( key );
+			final var entityHolder = entitiesByKey.get( key.getPersister(), key );
 			if ( entityHolder != null ) {
 				final Object proxy = entityHolder.proxy;
 				entityHolder.proxy = null;
@@ -893,7 +895,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	public void addEnhancedProxy(EntityKey key, PersistentAttributeInterceptable entity) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
 		final var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key, holder );
+		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
 		if ( oldHolder != null ) {
 			oldHolder.entity = entity;
 			oldHolder.state = EntityHolderState.ENHANCED_PROXY;
@@ -1219,7 +1221,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public Object getProxy(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key );
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
 		return holder == null ? null : holder.proxy;
 	}
 
@@ -1227,7 +1229,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	public void addProxy(EntityKey key, Object proxy) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
 		final var holder = getOrInitializeNewHolder().withProxy( key, key.getPersister(), proxy );
-		final var oldHolder = entityHolderMap.putIfAbsent( key, holder );
+		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
 		if ( oldHolder != null ) {
 			oldHolder.proxy = proxy;
 		}
@@ -1252,15 +1254,19 @@ class StatefulPersistenceContext implements PersistenceContext {
 	 */
 	@Deprecated
 	@Override
-	public Map<EntityKey,Object> getEntitiesByKey() {
+	@SuppressWarnings("unchecked")
+	public EntityKeyMap<Object> getEntitiesByKey() {
 		if ( entitiesByKey == null ) {
-			return emptyMap();
+			return new EntityKeyMap<>();
 		}
 		else {
-			final HashMap<EntityKey, Object> result = mapOfSize( entitiesByKey.size() );
+			// Build a snapshot map containing only holders with non-null entities
+			final EntityKeyMap<Object> result = new EntityKeyMap<>( entitiesByKey.size() );
 			for ( var entry : entitiesByKey.entrySet() ) {
 				if ( entry.getValue().entity != null ) {
-					result.put( entry.getKey(), entry.getValue().entity );
+					// Reuse the node's rootEntityName via forEachRaw would be ideal,
+					// but we need the entry's persister to put. Use the holder's descriptor.
+					result.put( entry.getValue().descriptor, entry.getKey(), entry.getValue().entity );
 				}
 			}
 			return result;
@@ -1269,23 +1275,23 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	// Used by Hibernate Reactive
 	@Override
-	public Map<EntityKey, Object> getEntitySnapshotsByKey() {
+	public EntityKeyMap<Object> getEntitySnapshotsByKey() {
 		return entitySnapshotsByKey;
 	}
 
 	// Used by Hibernate Reactive
 	@Override
-	public Map<EntityKey, Object> getOrInitializeEntitySnapshotsByKey() {
+	public EntityKeyMap<Object> getOrInitializeEntitySnapshotsByKey() {
 		if ( entitySnapshotsByKey == null ) {
-			entitySnapshotsByKey = mapOfSize( INIT_COLL_SIZE );
+			entitySnapshotsByKey = new EntityKeyMap<>( INIT_COLL_SIZE );
 		}
 		return entitySnapshotsByKey;
 	}
 
 	@Override
-	public Map<EntityKey, EntityHolder> getEntityHoldersByKey() {
-		//noinspection unchecked,rawtypes
-		return (Map) entitiesByKey;
+	@SuppressWarnings("unchecked")
+	public EntityKeyMap<EntityHolder> getEntityHoldersByKey() {
+		return (EntityKeyMap) entitiesByKey;
 	}
 
 	@Override
@@ -1456,7 +1462,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public String toString() {
-		final String entityKeySet = entitiesByKey == null ? "[]" :  entitiesByKey.keySet().toString();
+		final String entityKeySet = entitiesByKey == null ? "[]" :  entitiesByKey.toString();
 		final String collectionsKeySet = collectionsByKey == null ? "[]" : collectionsByKey.keySet().toString();
 		return "PersistenceContext[entityKeys=" + entityKeySet + ", collectionKeys=" + collectionsKeySet + "]";
 	}
@@ -1754,7 +1760,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public void replaceDelayedEntityIdentityInsertKeys(EntityKey oldKey, Object generatedId) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.remove( oldKey );
+		final var holder = entitiesByKey == null ? null : entitiesByKey.remove( oldKey.getPersister(), oldKey );
 		final Object entity = holder == null ? null : holder.entity;
 		final var oldEntry = entityEntryContext.removeEntityEntry( entity );
 		parentsByChild = null;
@@ -1810,16 +1816,20 @@ class StatefulPersistenceContext implements PersistenceContext {
 			entry.getKey().serialize( stream );
 			stream.writeObject( entry.getValue() );
 		} );
-		writeMapToStream( entitySnapshotsByKey, oos, "entitySnapshotsByKey", (entry, stream) -> {
-			entry.getKey().serialize( stream );
+		writeEntityKeyMapToStream( entitySnapshotsByKey, oos, "entitySnapshotsByKey", (entry, stream) -> {
+			stream.writeObject( entry.getIdentifier() );
+			stream.writeObject( entry.getRootEntityName() );
+			stream.writeObject( entry.getChangesetId() );
 			stream.writeObject( entry.getValue() );
 		} );
 
 		entityEntryContext.serialize( oos );
 
-		writeMapToStream( entitiesByKey, oos, "entitiesByKey", (entry, stream) -> {
-			entry.getKey().serialize( stream );
-			final var holder = entry.getValue();
+		writeEntityKeyMapToStream( entitiesByKey, oos, "entitiesByKey", (entry, stream) -> {
+			stream.writeObject( entry.getIdentifier() );
+			stream.writeObject( entry.getRootEntityName() );
+			stream.writeObject( entry.getChangesetId() );
+			final var holder = (EntityHolderImpl) entry.getValue();
 			stream.writeObject( holder.descriptor.getEntityName() );
 			stream.writeObject( holder.entity );
 			stream.writeObject( holder.proxy );
@@ -1853,12 +1863,49 @@ class StatefulPersistenceContext implements PersistenceContext {
 					stream.writeObject( entry.getValue() );
 				}
 		);
-		writeCollectionToStream( nullifiableEntityKeys, oos, "nullifiableEntityKey", EntityKey::serialize );
-		writeCollectionToStream( deletedUnloadedEntityKeys, oos, "deletedUnloadedEntityKeys", EntityKey::serialize );
+		writeEntityKeySetToStream( nullifiableEntityKeys, oos, "nullifiableEntityKey" );
+		writeEntityKeySetToStream( deletedUnloadedEntityKeys, oos, "deletedUnloadedEntityKeys" );
 	}
 
 	private interface Serializer<E> {
 		void serialize(E element, ObjectOutputStream oos) throws IOException;
+	}
+
+	private <V> void writeEntityKeyMapToStream(
+			EntityKeyMap<V> map,
+			ObjectOutputStream oos,
+			String keysName,
+			Serializer<EntityKeyMap.Entry<V>> serializer) throws IOException {
+		if ( map == null ) {
+			oos.writeInt( 0 );
+		}
+		else {
+			final int size = map.size();
+			oos.writeInt( size );
+			PERSISTENCE_CONTEXT_LOGGER.startingSerializationOfEntries( size, keysName );
+			for ( var entry : map.entrySet() ) {
+				serializer.serialize( entry, oos );
+			}
+		}
+	}
+
+	private void writeEntityKeySetToStream(
+			EntityKeySet set,
+			ObjectOutputStream oos,
+			String keysName) throws IOException {
+		if ( set == null ) {
+			oos.writeInt( 0 );
+		}
+		else {
+			final int size = set.size();
+			oos.writeInt( size );
+			PERSISTENCE_CONTEXT_LOGGER.startingSerializationOfEntries( size, keysName );
+			for ( var entry : set.backingMap().entrySet() ) {
+				oos.writeObject( entry.getIdentifier() );
+				oos.writeObject( entry.getRootEntityName() );
+				oos.writeObject( entry.getChangesetId() );
+			}
+		}
 	}
 
 	private <K, V> void writeMapToStream(
@@ -1957,9 +2004,17 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "entitySnapshotsByKey" );
 				}
-				context.entitySnapshotsByKey = mapOfSize( Math.max( count, INIT_COLL_SIZE ) );
+				context.entitySnapshotsByKey = new EntityKeyMap<>( Math.max( count, INIT_COLL_SIZE ) );
+				final var snapshotMetamodel = factory.getMappingMetamodel();
 				for ( int i = 0; i < count; i++ ) {
-					context.entitySnapshotsByKey.put( EntityKey.deserialize( ois, factory ), ois.readObject() );
+					final Object snapId = ois.readObject();
+					final String snapEntityName = (String) ois.readObject();
+					final Object snapChangesetId = ois.readObject();
+					final EntityPersister snapPersister = snapshotMetamodel.getEntityDescriptor( snapEntityName );
+					final EntityKey snapKey = snapChangesetId != null
+							? EntityKey.of( snapId, snapPersister, snapChangesetId )
+							: EntityKey.of( snapId, snapPersister );
+					context.entitySnapshotsByKey.put( snapPersister, snapKey, ois.readObject() );
 				}
 			}
 
@@ -1970,11 +2025,16 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "entitiesByKey" );
 				}
-				context.entitiesByKey = mapOfSize( Math.max( count, INIT_COLL_SIZE ) );
+				context.entitiesByKey = new EntityKeyMap<>( Math.max( count, INIT_COLL_SIZE ) );
 				final var metamodel = factory.getMappingMetamodel();
 				for ( int i = 0; i < count; i++ ) {
-					final var entityKey = EntityKey.deserialize( ois, factory );
+					final Object entId = ois.readObject();
+					final String entRootName = (String) ois.readObject();
+					final Object entCsId = ois.readObject();
 					final var persister = metamodel.getEntityDescriptor( (String) ois.readObject() );
+					final var entityKey = entCsId != null
+							? EntityKey.of( entId, persister, entCsId )
+							: EntityKey.of( entId, persister );
 					final Object entity = ois.readObject();
 					final Object proxy = ois.readObject();
 					final var state = (EntityHolderState) ois.readObject();
@@ -2016,7 +2076,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 						}
 					}
 					holder.setEntityEntry( context.entityEntryContext.getEntityEntry( entity ) );
-					context.entitiesByKey.put( entityKey, holder );
+					context.entitiesByKey.put( persister, entityKey, holder );
 				}
 			}
 
@@ -2064,9 +2124,16 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "nullifiableEntityKey" );
 				}
-				context.nullifiableEntityKeys = new HashSet<>();
+				context.nullifiableEntityKeys = new EntityKeySet();
 				for ( int i = 0; i < count; i++ ) {
-					context.nullifiableEntityKeys.add( EntityKey.deserialize( ois, factory ) );
+					final Object nkId = ois.readObject();
+					final String nkEntityName = (String) ois.readObject();
+					final Object nkCsId = ois.readObject();
+					final EntityPersister nkPersister = factory.getMappingMetamodel().getEntityDescriptor( nkEntityName );
+					final EntityKey nk = nkCsId != null
+							? EntityKey.of( nkId, nkPersister, nkCsId )
+							: EntityKey.of( nkId, nkPersister );
+					context.nullifiableEntityKeys.add( nkPersister, nk );
 				}
 			}
 
@@ -2075,9 +2142,16 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "deletedUnloadedEntityKeys" );
 				}
-				context.deletedUnloadedEntityKeys = new HashSet<>();
+				context.deletedUnloadedEntityKeys = new EntityKeySet();
 				for ( int i = 0; i < count; i++ ) {
-					context.deletedUnloadedEntityKeys.add( EntityKey.deserialize( ois, factory ) );
+					final Object dkId = ois.readObject();
+					final String dkEntityName = (String) ois.readObject();
+					final Object dkCsId = ois.readObject();
+					final EntityPersister dkPersister = factory.getMappingMetamodel().getEntityDescriptor( dkEntityName );
+					final EntityKey dk = dkCsId != null
+							? EntityKey.of( dkId, dkPersister, dkCsId )
+							: EntityKey.of( dkId, dkPersister );
+					context.deletedUnloadedEntityKeys.add( dkPersister, dk );
 				}
 			}
 
@@ -2141,15 +2215,15 @@ class StatefulPersistenceContext implements PersistenceContext {
 	public boolean containsNullifiableEntityKey(Supplier<EntityKey> sek) {
 		return nullifiableEntityKeys != null
 			&& !nullifiableEntityKeys.isEmpty()
-			&& nullifiableEntityKeys.contains( sek.get() );
+			&& nullifiableEntityKeys.contains( sek.get().getPersister(), sek.get() );
 	}
 
 	@Override
 	public void registerNullifiableEntityKey(EntityKey key) {
 		if ( nullifiableEntityKeys == null ) {
-			nullifiableEntityKeys = new HashSet<>();
+			nullifiableEntityKeys = new EntityKeySet();
 		}
-		nullifiableEntityKeys.add( key );
+		nullifiableEntityKeys.add( key.getPersister(), key );
 	}
 
 	@Override
@@ -2161,21 +2235,21 @@ class StatefulPersistenceContext implements PersistenceContext {
 	@Override
 	public boolean containsDeletedUnloadedEntityKey(EntityKey ek) {
 		return deletedUnloadedEntityKeys != null
-			&& deletedUnloadedEntityKeys.contains( ek );
+			&& deletedUnloadedEntityKeys.contains( ek.getPersister(), ek );
 	}
 
 	@Override
 	public void registerDeletedUnloadedEntityKey(EntityKey key) {
 		if ( deletedUnloadedEntityKeys == null ) {
-			deletedUnloadedEntityKeys = new HashSet<>();
+			deletedUnloadedEntityKeys = new EntityKeySet();
 		}
-		deletedUnloadedEntityKeys.add( key );
+		deletedUnloadedEntityKeys.add( key.getPersister(), key );
 	}
 
 	@Override
 	public void removeDeletedUnloadedEntityKey(EntityKey key) {
 		assert deletedUnloadedEntityKeys != null;
-		deletedUnloadedEntityKeys.remove( key );
+		deletedUnloadedEntityKeys.remove( key.getPersister(), key );
 	}
 
 	@Override

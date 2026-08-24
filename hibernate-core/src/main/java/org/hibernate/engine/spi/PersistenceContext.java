@@ -551,21 +551,21 @@ public interface PersistenceContext {
 	 * Doubly internal
 	 */
 	@Internal
-	Map<EntityKey,Object> getEntitiesByKey();
+	EntityKeyMap<Object> getEntitiesByKey();
 
 	// Used by Hibernate Reactive
 	@Internal
-	Map<EntityKey,Object> getEntitySnapshotsByKey();
+	EntityKeyMap<Object> getEntitySnapshotsByKey();
 
 	// Used by Hibernate Reactive
 	@Internal
-	Map<EntityKey,Object> getOrInitializeEntitySnapshotsByKey();
+	EntityKeyMap<Object> getOrInitializeEntitySnapshotsByKey();
 
 	/**
 	 * Doubly internal
 	 */
 	@Internal
-	Map<EntityKey,EntityHolder> getEntityHoldersByKey();
+	EntityKeyMap<EntityHolder> getEntityHoldersByKey();
 
 	/**
 	 * Provides access to the entity/EntityEntry combos associated with the persistence context in a manner that

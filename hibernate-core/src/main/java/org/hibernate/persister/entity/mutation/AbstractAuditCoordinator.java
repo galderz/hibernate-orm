@@ -120,7 +120,7 @@ abstract class AbstractAuditCoordinator extends AbstractMutationCoordinator impl
 		final var entityEntry = session.getPersistenceContextInternal().getEntry( entity );
 		return entityEntry != null
 				? entityEntry.getEntityKey()
-				: new EntityKey( id, entityPersister() );
+				: EntityKey.of( id, entityPersister() );
 	}
 
 	/**

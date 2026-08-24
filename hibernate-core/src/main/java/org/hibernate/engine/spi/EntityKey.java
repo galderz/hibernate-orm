@@ -9,169 +9,135 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-import org.hibernate.AssertionFailure;
 import org.hibernate.persister.entity.EntityPersister;
-import org.hibernate.type.Type;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static org.hibernate.pretty.MessageHelper.infoString;
 
 /**
- * Uniquely identifies of an entity instance in a particular Session by identifier.
- * Note that it's only safe to be used within the scope of a Session: it doesn't consider for example the tenantId
- * as part of the equality definition.
+ * Uniquely identifies an entity instance in a particular Session by identifier.
+ * Note that it's only safe to be used within the scope of a Session: it doesn't
+ * consider for example the tenantId as part of the equality definition.
  * <p>
- * Information used to determine uniqueness consists of the entity-name and the identifier value (see {@link #equals}).
+ * An {@code EntityKey} carries <em>only</em> the entity identifier value.
+ * Entity-type discrimination (root entity name) and temporal changeset
+ * information are handled externally by {@link EntityKeyMap}, which stores
+ * this metadata in its internal {@code Node} structure.
  * <p>
- * Performance considerations: lots of instances of this type are created at runtime. Make sure each one is as small as possible
- * by storing just the essential needed.
+ * Some implementations (e.g. those returned by
+ * {@link SharedSessionContractImplementor#generateEntityKey}) additionally
+ * carry a reference to the {@link EntityPersister} for convenience, exposed
+ * via {@link #getPersister()} and {@link #getEntityName()}.
  * <p>
- * For temporal entities, use {@link TemporalEntityKey} which includes a changeset identifier
- * to isolate historical snapshots in the persistence context.
+ * Performance considerations: lots of instances of this type are created at
+ * runtime. The canonical implementation ({@link EntityKeyImpl}) stores just
+ * a single {@code Object identifier} field.
  *
  * @author Gavin King
  * @author Sanne Grinovero
+ *
+ * @see EntityKeyMap
  */
-public sealed class EntityKey implements Serializable permits TemporalEntityKey {
-
-	private final Object identifier;
-	private final int hashCode;
-	private final EntityPersister persister;
+public interface EntityKey extends Serializable {
 
 	/**
-	 * Construct a unique identifier for an entity class instance.
-	 * <p>
-	 * For temporal (audit) contexts, prefer
-	 * {@link SharedSessionContractImplementor#generateEntityKey} which
-	 * automatically creates a {@link TemporalEntityKey} when operating
-	 * in a temporal context.
-	 *
-	 * @param id The entity id
-	 * @param persister The entity persister
+	 * The entity identifier value.
 	 */
-	public EntityKey(@Nullable Object id, EntityPersister persister) {
-		this( id, persister, 0 );
-	}
+	Object getIdentifier();
 
 	/**
-	 * @param changesetIdHashCode hash code contribution from the changeset identifier
+	 * Synonym for {@link #getIdentifier()}.
 	 */
-	EntityKey(@Nullable Object id, EntityPersister persister, int changesetIdHashCode) {
-		this.persister = persister;
-		if ( id == null ) {
-			throw new AssertionFailure( "null identifier (" + persister.getEntityName() + ")" );
-		}
-		this.identifier = id;
-		this.hashCode = generateHashCode( id, persister, changesetIdHashCode );
-	}
-
-	private static int generateHashCode(Object id, EntityPersister persister, int changesetIdHashCode) {
-		int result = 17;
-		final String rootEntityName = persister.getRootEntityName();
-		result = 37 * result + rootEntityName.hashCode();
-		final Type identifierType = persister.getIdentifierType().getTypeForEqualsHashCode();
-		result = 37 * result + ( identifierType == null ? id.hashCode() : identifierType.getHashCode( id, persister.getFactory() ) );
-		result = 37 * result + changesetIdHashCode;
-		return result;
-	}
-
-	public boolean isBatchLoadable(LoadQueryInfluencers influencers) {
-		return influencers.effectivelyBatchLoadable( persister );
-	}
-
-	public Object getIdentifierValue() {
-		return identifier;
-	}
-
-	public Object getIdentifier() {
-		return identifier;
-	}
-
-	public String getEntityName() {
-		return persister.getEntityName();
-	}
-
-	public EntityPersister getPersister() {
-		return persister;
+	default Object getIdentifierValue() {
+		return getIdentifier();
 	}
 
 	/**
 	 * The audit changeset identifier for this key, or {@code null} for
 	 * non-temporal entities.
-	 * When non-null, this entity is a read-only historical snapshot.
 	 */
-	public @Nullable Object getChangesetId() {
+	default @Nullable Object getChangesetId() {
 		return null;
 	}
 
 	/**
 	 * Whether this key refers to a temporal (historical) snapshot.
 	 */
-	public boolean isTemporal() {
+	default boolean isTemporal() {
 		return false;
 	}
 
-	@Override
-	public boolean equals(@Nullable Object other) {
-		if ( this == other ) {
-			return true;
-		}
-		if ( !(other instanceof EntityKey otherKey) ) {
-			return false;
-		}
-
-		return samePersistentType( otherKey )
-			&& sameIdentifier( otherKey )
-			&& sameChangesetId( otherKey );
-
-	}
-
-	private boolean sameIdentifier(final EntityKey otherKey) {
-		final Type identifierType;
-		return this.identifier == otherKey.identifier || (
-				(identifierType = persister.getIdentifierType().getTypeForEqualsHashCode()) == null && identifier.equals( otherKey.identifier )
-						|| identifierType != null && identifierType.isEqual( otherKey.identifier, this.identifier, persister.getFactory() ) );
+	/**
+	 * The entity persister, if available. Some lightweight key instances
+	 * (e.g. {@link EntityKeyImpl}) do not carry a persister reference and
+	 * will throw {@link UnsupportedOperationException}.
+	 */
+	default EntityPersister getPersister() {
+		throw new UnsupportedOperationException(
+				"This EntityKey does not carry a persister reference. "
+						+ "Use the persister from the EntityHolder or session context." );
 	}
 
 	/**
-	 * Compare changeset identifiers without virtual dispatch, using
-	 * instanceof on the sealed hierarchy for optimal JIT performance.
+	 * The entity name, if available. Delegates to
+	 * {@link #getPersister()}{@code .getEntityName()}.
 	 */
-	private boolean sameChangesetId(final EntityKey otherKey) {
-		if ( this instanceof TemporalEntityKey t1 ) {
-			return otherKey instanceof TemporalEntityKey t2
-					&& t1.getChangesetId().equals( t2.getChangesetId() );
-		}
-		return !( otherKey instanceof TemporalEntityKey );
+	default String getEntityName() {
+		return getPersister().getEntityName();
 	}
 
-	private boolean samePersistentType(final EntityKey otherKey) {
-		return otherKey.persister == persister
-			|| otherKey.persister.getRootEntityName().equals( persister.getRootEntityName() );
+	/**
+	 * Whether this entity is eligible for batch loading.
+	 */
+	default boolean isBatchLoadable(LoadQueryInfluencers influencers) {
+		return influencers.effectivelyBatchLoadable( getPersister() );
 	}
 
-	@Override
-	public int hashCode() {
-		return hashCode;
+	// -- factory methods ------------------------------------------------------
+
+	/**
+	 * Create an {@code EntityKey} for the given identifier (without persister).
+	 */
+	static EntityKey of(Object id) {
+		return new EntityKeyImpl( id );
 	}
 
-	@Override
-	public String toString() {
-		return "EntityKey" + infoString( this.persister, identifier, persister.getFactory() );
+	/**
+	 * Create an {@code EntityKey} with a persister reference for convenience
+	 * access to entity name and batch-loadability.
+	 */
+	static EntityKey of(Object id, EntityPersister persister) {
+		return new EntityKeyWithPersister( id, persister );
 	}
+
+	/**
+	 * Create a temporal {@code EntityKey} for the given identifier and
+	 * changeset id.
+	 */
+	static EntityKey of(Object id, Object changesetId) {
+		return new TemporalEntityKey( id, changesetId );
+	}
+
+	/**
+	 * Create a temporal {@code EntityKey} with a persister reference.
+	 */
+	static EntityKey of(Object id, EntityPersister persister, Object changesetId) {
+		return new TemporalEntityKeyWithPersister( id, persister, changesetId );
+	}
+
+	// -- serialization --------------------------------------------------------
 
 	/**
 	 * Custom serialization routine used during serialization of a
 	 * Session/PersistenceContext for increased performance.
 	 *
 	 * @param oos The stream to which we should write the serial data.
-	 *
 	 * @throws IOException Thrown by Java I/O
 	 */
-	public void serialize(ObjectOutputStream oos) throws IOException {
-		oos.writeObject( identifier );
-		oos.writeObject( persister.getEntityName() );
+	default void serialize(ObjectOutputStream oos) throws IOException {
+		oos.writeObject( getIdentifier() );
+		oos.writeObject( getEntityName() );
 		oos.writeObject( getChangesetId() );
 	}
 
@@ -179,15 +145,14 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 	 * Custom deserialization routine used during deserialization of a
 	 * Session/PersistenceContext for increased performance.
 	 *
-	 * @param ois The stream from which to read the entry.
+	 * @param ois            The stream from which to read the entry.
 	 * @param sessionFactory The SessionFactory owning the Session being deserialized.
-	 *
 	 * @return The deserialized EntityKey
-	 *
-	 * @throws IOException Thrown by Java I/O
+	 * @throws IOException            Thrown by Java I/O
 	 * @throws ClassNotFoundException Thrown by Java I/O
 	 */
-	public static EntityKey deserialize(ObjectInputStream ois, SessionFactoryImplementor sessionFactory) throws IOException, ClassNotFoundException {
+	static EntityKey deserialize(ObjectInputStream ois, SessionFactoryImplementor sessionFactory)
+			throws IOException, ClassNotFoundException {
 		final Object id = ois.readObject();
 		final String entityName = (String) ois.readObject();
 		final Object changesetId = ois.readObject();
@@ -195,7 +160,16 @@ public sealed class EntityKey implements Serializable permits TemporalEntityKey 
 				sessionFactory.getMappingMetamodel()
 						.getEntityDescriptor( entityName );
 		return changesetId != null
-				? new TemporalEntityKey( id, entityPersister, changesetId )
-				: new EntityKey( id, entityPersister );
+				? EntityKey.of( id, entityPersister, changesetId )
+				: EntityKey.of( id, entityPersister );
+	}
+
+	// -- toString helper ------------------------------------------------------
+
+	/**
+	 * Produce a human-readable representation using the given persister.
+	 */
+	default String toString(EntityPersister persister) {
+		return "EntityKey" + infoString( persister, getIdentifier(), persister.getFactory() );
 	}
 }

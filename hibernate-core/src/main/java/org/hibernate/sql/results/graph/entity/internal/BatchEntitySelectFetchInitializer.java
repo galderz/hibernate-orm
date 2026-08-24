@@ -5,10 +5,9 @@
 package org.hibernate.sql.results.graph.entity.internal;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
-import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.EntityKeyMap;
 import org.hibernate.metamodel.mapping.AttributeMapping;
 import org.hibernate.metamodel.mapping.internal.ToOneAttributeMapping;
 import org.hibernate.persister.entity.EntityPersister;
@@ -29,7 +28,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 	protected final Type referencedModelPartType;
 
 	public static class BatchEntitySelectFetchInitializerData extends AbstractBatchEntitySelectFetchInitializerData {
-		private HashMap<EntityKey, List<ParentInfo>> toBatchLoad;
+		private EntityKeyMap<List<ParentInfo>> toBatchLoad;
 
 		public BatchEntitySelectFetchInitializerData(
 				BatchEntitySelectFetchInitializer initializer,
@@ -65,10 +64,15 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 		final var owningData = owningEntityInitializer.getData( rowProcessingState );
 		var toBatchLoad = data.toBatchLoad;
 		if ( toBatchLoad == null ) {
-			toBatchLoad = data.toBatchLoad = new HashMap<>();
+			toBatchLoad = data.toBatchLoad = new EntityKeyMap<>();
 		}
 		// Always register the entity key for resolution
-		final var parentInfos = toBatchLoad.computeIfAbsent( data.entityKey, key -> new ArrayList<>() );
+		final var persister = data.entityKey.getPersister();
+		var parentInfos = toBatchLoad.get( persister, data.entityKey );
+		if ( parentInfos == null ) {
+			parentInfos = new ArrayList<>();
+			toBatchLoad.put( persister, data.entityKey, parentInfos );
+		}
 		// But only add the parent info if the parent entity is not already initialized
 		if ( owningData.getState() != State.INITIALIZED ) {
 			final var parentAttribute =

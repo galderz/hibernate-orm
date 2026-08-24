@@ -46,7 +46,7 @@ public class BatchFetchQueue {
 	 * A map of {@link SubselectFetch subselect-fetch descriptors} keyed by the
 	 * {@link EntityKey} against which the descriptor is registered.
 	 */
-	private @Nullable Map<EntityKey, SubselectFetch> subselectsByEntityKey;
+	private @Nullable EntityKeyMap<SubselectFetch> subselectsByEntityKey;
 
 	/**
 	 * Used to hold information about the entities that are currently eligible for batch-fetching. Ultimately
@@ -94,7 +94,7 @@ public class BatchFetchQueue {
 	 * this entity key.
 	 */
 	public @Nullable SubselectFetch getSubselect(EntityKey key) {
-		return subselectsByEntityKey == null ? null : subselectsByEntityKey.get( key );
+		return subselectsByEntityKey == null ? null : subselectsByEntityKey.get( key.getPersister(), key );
 	}
 
 	/**
@@ -105,10 +105,10 @@ public class BatchFetchQueue {
 	 */
 	public void addSubselect(EntityKey key, SubselectFetch subquery) {
 		if ( subselectsByEntityKey == null ) {
-			subselectsByEntityKey = mapOfSize( 12 );
+			subselectsByEntityKey = new EntityKeyMap<>( 12 );
 		}
 
-		final var previous = subselectsByEntityKey.put( key, subquery );
+		final var previous = subselectsByEntityKey.put( key.getPersister(), key, subquery );
 		if ( previous != null && LOG.isDebugEnabled() ) {
 			LOG.tracef(
 					"SubselectFetch previously registered with BatchFetchQueue for '%s.s'",
@@ -126,7 +126,7 @@ public class BatchFetchQueue {
 	 */
 	public void removeSubselect(EntityKey key) {
 		if ( subselectsByEntityKey != null ) {
-			subselectsByEntityKey.remove( key );
+			subselectsByEntityKey.remove( key.getPersister(), key );
 		}
 	}
 

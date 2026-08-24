@@ -8,47 +8,46 @@ import java.io.Serial;
 import java.util.Objects;
 
 import org.hibernate.AssertionFailure;
+import org.hibernate.persister.entity.EntityPersister;
+
+import static org.hibernate.pretty.MessageHelper.infoString;
 
 /**
- * An {@link EntityKey} for a temporal (historical) snapshot of an entity,
- * loaded from an audit table at a specific changeset identifier.
- * <p>
- * The changeset identifier is included in {@code equals()}/{@code hashCode()}
- * so that the persistence context naturally isolates entities at different
- * points in time. Entities with a temporal key are always read-only.
+ * A temporal {@link EntityKey} that additionally carries an
+ * {@link EntityPersister} reference.
  *
- * @author Marco Belladelli
- * @see EntityKey
- * @since 7.4
+ * @see EntityKey#of(Object, EntityPersister, Object)
+ * @see TemporalEntityKey
  */
-public final class TemporalEntityKey implements EntityKey {
+final class TemporalEntityKeyWithPersister implements EntityKey {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
 
 	private final Object identifier;
+	private final EntityPersister persister;
 	private final Object changesetId;
 
-	/**
-	 * Construct a unique identifier for a temporal snapshot of an entity.
-	 *
-	 * @param id          The entity id (must not be null)
-	 * @param changesetId The changeset identifier (must not be null)
-	 */
-	public TemporalEntityKey(Object id, Object changesetId) {
+	TemporalEntityKeyWithPersister(Object id, EntityPersister persister, Object changesetId) {
 		if ( id == null ) {
-			throw new AssertionFailure( "null identifier" );
+			throw new AssertionFailure( "null identifier (" + persister.getEntityName() + ")" );
 		}
 		if ( changesetId == null ) {
 			throw new AssertionFailure( "null changesetId" );
 		}
 		this.identifier = id;
+		this.persister = persister;
 		this.changesetId = changesetId;
 	}
 
 	@Override
 	public Object getIdentifier() {
 		return identifier;
+	}
+
+	@Override
+	public EntityPersister getPersister() {
+		return persister;
 	}
 
 	@Override
@@ -80,6 +79,6 @@ public final class TemporalEntityKey implements EntityKey {
 
 	@Override
 	public String toString() {
-		return "EntityKey(" + identifier + ")@" + changesetId;
+		return "EntityKey" + infoString( persister, identifier, persister.getFactory() ) + "@" + changesetId;
 	}
 }

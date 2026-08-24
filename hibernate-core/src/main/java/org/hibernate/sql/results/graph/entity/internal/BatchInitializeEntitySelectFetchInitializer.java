@@ -4,9 +4,8 @@
  */
 package org.hibernate.sql.results.graph.entity.internal;
 
-import java.util.HashSet;
 
-import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.engine.spi.EntityKeySet;
 import org.hibernate.metamodel.mapping.internal.ToOneAttributeMapping;
 import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.spi.NavigablePath;
@@ -25,7 +24,7 @@ import static org.hibernate.internal.log.LoggingHelper.toLoggableString;
 public class BatchInitializeEntitySelectFetchInitializer extends AbstractBatchEntitySelectFetchInitializer<BatchInitializeEntitySelectFetchInitializer.BatchInitializeEntitySelectFetchInitializerData> {
 
 	public static class BatchInitializeEntitySelectFetchInitializerData extends AbstractBatchEntitySelectFetchInitializerData {
-		private HashSet<EntityKey> toBatchLoad;
+		private EntityKeySet toBatchLoad;
 
 		public BatchInitializeEntitySelectFetchInitializerData(
 				BatchInitializeEntitySelectFetchInitializer initializer,
@@ -66,9 +65,9 @@ public class BatchInitializeEntitySelectFetchInitializer extends AbstractBatchEn
 		data.setInstance( instance );
 		var toBatchLoad = data.toBatchLoad;
 		if ( toBatchLoad == null ) {
-			toBatchLoad = data.toBatchLoad = new HashSet<>();
+			toBatchLoad = data.toBatchLoad = new EntityKeySet();
 		}
-		toBatchLoad.add( entityKey );
+		toBatchLoad.add( entityKey.getPersister(), entityKey );
 	}
 
 	@Override

@@ -45,7 +45,7 @@ public class DeleteCoordinatorAudit extends AbstractAuditCoordinator implements 
 		}
 		else {
 			state = entityPersister().getValues( entity );
-			entityKey = new EntityKey( id, entityPersister() );
+			entityKey = EntityKey.of( id, entityPersister() );
 		}
 
 		currentDeleteCoordinator.delete( entity, id, version, session );
