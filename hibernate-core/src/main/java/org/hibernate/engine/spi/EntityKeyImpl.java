@@ -24,7 +24,7 @@ import org.hibernate.AssertionFailure;
  * @see EntityKey
  * @see EntityKeyMap
  */
-public final class EntityKeyImpl implements EntityKey {
+public value class EntityKeyImpl implements EntityKey {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
