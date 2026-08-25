@@ -569,7 +569,7 @@ public class EntityInitializerImpl
 		if ( data.getState() == State.RESOLVED ) {
 			rowProcessingState.getSession()
 					.getPersistenceContextInternal()
-					.removeEntityHolder( data.entityKey );
+					.removeEntityHolder( data.entityKey.getPersister(), data.entityKey );
 			data.entityKey = null;
 			data.entityHolder = null;
 			data.entityInstanceForNotify = null;
@@ -946,7 +946,7 @@ public class EntityInitializerImpl
 			data.concreteDescriptor = session.getEntityPersister( null, entityInstanceForNotify );
 			resolveEntityKey( data,
 					data.concreteDescriptor.getIdentifier( entityInstanceForNotify, session ) );
-			data.entityHolder = session.getPersistenceContextInternal().getEntityHolder( data.entityKey );
+			data.entityHolder = session.getPersistenceContextInternal().getEntityHolder( data.entityKey.getPersister(), data.entityKey );
 			data.setState( State.INITIALIZED );
 			initializeSubInstancesFromParent( data );
 		}
@@ -1084,6 +1084,7 @@ public class EntityInitializerImpl
 				data.concreteDescriptor = session.getEntityPersister( null, instance );
 				resolveEntityKey( data, data.concreteDescriptor.getIdentifier( instance, session ) );
 				data.entityHolder = persistenceContext.claimEntityHolderIfPossible(
+						data.concreteDescriptor,
 						data.entityKey,
 						null,
 						rowProcessingState.getJdbcValuesSourceProcessingState(),
@@ -1102,6 +1103,7 @@ public class EntityInitializerImpl
 						// Since this load request can happen through `find()` which doesn't auto-flush on association joins,
 						// the entity must be fully initialized, even if it is removed already
 						data.entityHolder = persistenceContext.claimEntityHolderIfPossible(
+								data.concreteDescriptor,
 								data.entityKey,
 								instance,
 								rowProcessingState.getJdbcValuesSourceProcessingState(),
@@ -1139,6 +1141,7 @@ public class EntityInitializerImpl
 				assert data.concreteDescriptor != null;
 				resolveEntityKey( data, lazyInitializer.getInternalIdentifier() );
 				data.entityHolder = persistenceContext.claimEntityHolderIfPossible(
+						data.concreteDescriptor,
 						data.entityKey,
 						null,
 						rowProcessingState.getJdbcValuesSourceProcessingState(),
@@ -1157,7 +1160,7 @@ public class EntityInitializerImpl
 				final var implementation = lazyInitializer.getImplementation();
 				data.concreteDescriptor = session.getEntityPersister( null, implementation );
 				resolveEntityKey( data, lazyInitializer.getInternalIdentifier() );
-				data.entityHolder = persistenceContext.getEntityHolder( data.entityKey );
+				data.entityHolder = persistenceContext.getEntityHolder( data.entityKey.getPersister(), data.entityKey );
 				final Object proxy = data.entityHolder.getProxy();
 				if ( proxy == instance ) {
 					data.entityInstanceForNotify = implementation;
@@ -1216,6 +1219,7 @@ public class EntityInitializerImpl
 
 		if ( data.getState() == State.RESOLVED ) {
 			data.entityHolder = persistenceContext.claimEntityHolderIfPossible(
+					data.concreteDescriptor,
 					data.entityKey,
 					data.entityInstanceForNotify,
 					rowProcessingState.getJdbcValuesSourceProcessingState(),
@@ -1254,8 +1258,10 @@ public class EntityInitializerImpl
 				resolveEntityKey( data, id );
 			}
 			data.entityHolder =
-					persistenceContext
-							.claimEntityHolderIfPossible(
+					persistenceContext.claimEntityHolderIfPossible(
+
+									data.concreteDescriptor,
+
 									data.entityKey,
 									null,
 									rowProcessingState.getJdbcValuesSourceProcessingState(),
@@ -1506,7 +1512,7 @@ public class EntityInitializerImpl
 				assert data.entityHolder.getEntityInitializer() == this;
 				// If this initializer owns the entity, we have to remove the entity holder,
 				// because the subsequent loading process will claim the entity
-				session.getPersistenceContextInternal().removeEntityHolder( data.entityKey );
+				session.getPersistenceContextInternal().removeEntityHolder( data.entityKey.getPersister(), data.entityKey );
 				return session.internalLoad(
 						data.concreteDescriptor.getEntityName(),
 						data.entityKey.getIdentifier(),
@@ -1578,7 +1584,7 @@ public class EntityInitializerImpl
 		final var rowProcessingState = data.getRowProcessingState();
 		final var valuesSourceProcessingState = rowProcessingState.getJdbcValuesSourceProcessingState();
 		rowProcessingState.getSession().getPersistenceContextInternal()
-				.claimEntityHolderIfPossible( data.entityKey, instance, valuesSourceProcessingState, this );
+				.claimEntityHolderIfPossible( data.concreteDescriptor, data.entityKey, instance, valuesSourceProcessingState, this );
 	}
 
 	protected void registerReloadedEntity(EntityInitializerData data) {
@@ -1666,7 +1672,7 @@ public class EntityInitializerImpl
 		final Object entity =
 				data.getRowProcessingState().getSession()
 						.getPersistenceContextInternal()
-						.getEntity( data.entityKey );
+						.getEntity( data.entityKey.getPersister(), data.entityKey );
 		return entity == null
 			|| entity == data.entityInstanceForNotify;
 	}
@@ -1709,7 +1715,7 @@ public class EntityInitializerImpl
 		}
 		data.concreteDescriptor.setValues( entityInstanceForNotify, resolvedEntityState );
 
-		persistenceContext.addEntity( entityKey, entityInstanceForNotify );
+		persistenceContext.addEntity( entityKey.getPersister(), entityKey, entityInstanceForNotify );
 
 		// Also register possible unique key entries
 		registerPossibleUniqueKeyEntries( data, resolvedEntityState, session );

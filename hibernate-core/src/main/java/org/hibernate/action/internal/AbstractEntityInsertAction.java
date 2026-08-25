@@ -132,7 +132,7 @@ public abstract class AbstractEntityInsertAction extends EntityAction {
 		final Object[] state = getState();
 		final Object version = getVersion( state, persister );
 		final var persistenceContext = getSession().getPersistenceContextInternal();
-		final var entityHolder = persistenceContext.addEntityHolder( key, getInstance() );
+		final var entityHolder = persistenceContext.addEntityHolder( getPersister(), key, getInstance() );
 		final var entityEntry = persistenceContext.addEntry(
 				getInstance(),
 				persister.isMutable() ? Status.MANAGED : Status.READ_ONLY,

@@ -123,7 +123,7 @@ public class ManyToOneType extends EntityType {
 			if ( session.getLoadQueryInfluencers().effectivelyBatchLoadable( persister ) ) {
 				final var entityKey = session.generateEntityKey( id, persister );
 				final var persistenceContext = session.getPersistenceContextInternal();
-				if ( !persistenceContext.containsEntity( entityKey ) ) {
+				if ( !persistenceContext.containsEntity( entityKey.getPersister(), entityKey ) ) {
 					persistenceContext.getBatchFetchQueue().addBatchLoadableEntityKey( entityKey );
 				}
 			}

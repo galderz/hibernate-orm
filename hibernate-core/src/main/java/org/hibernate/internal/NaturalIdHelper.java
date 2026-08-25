@@ -52,7 +52,7 @@ public class NaturalIdHelper {
 			final boolean loggerDebugEnabled = NATURAL_ID_LOGGER.isDebugEnabled();
 			for ( Object id : naturalIdResolutions.getCachedPkResolutions( persister ) ) {
 				final var entityKey = session.generateEntityKey( id, persister );
-				final Object entity = persistenceContext.getEntity( entityKey );
+				final Object entity = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
 				final var entry = persistenceContext.getEntry( entity );
 				if ( entry != null ) {
 					if ( entry.requiresDirtyCheck( entity )

@@ -849,7 +849,7 @@ public class ActionQueue implements TransactionCompletionCallbacks {
 						&& action.getEntityName().equals( entityPersister.getEntityName() )
 						&& entityPersister.getIdentifierMapping().areEqual( action.getId(), identifier, session ) ) {
 					session.getPersistenceContextInternal()
-							.removeDeletedUnloadedEntityKey( session.generateEntityKey( identifier, entityPersister ) );
+							.removeDeletedUnloadedEntityKey( entityPersister, session.generateEntityKey( identifier, entityPersister ) );
 					deletions.remove( i );
 					return;
 				}

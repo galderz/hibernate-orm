@@ -6,13 +6,8 @@
 |---|---|---|---|---|---|---|
 | `EntityKeyWithPersister` | 2 oops (identifier + persister) | 8 bytes | 9 bytes | 16 | ❌ | **NO** |
 | `EntityKeyImpl` | 1 oop (identifier) | 4 bytes | 5 bytes | 8 | ✅ | **YES** |
-| `LongKey` (hypothetical) | 1 long | 8 bytes | 9 bytes | 16 | ❌ | NO |
 
-**Key finding**: `EntityKeyWithPersister` at 2 oops is **too large for nullable atomic flattening** on the hot path.
-Reducing to 1 oop (`EntityKeyImpl`) makes it flattenable, enabling C2 to scalarize it across method calls via
-`InlineTypePassFieldsAsArgs=true`.
-
-## Heap Impact (from user's Epsilon GC test)
+## Heap Impact (from user's Epsilon GC test, before Priority 1 fix)
 
 | Class | Instances | Size each | Total |
 |---|---|---|---|
@@ -20,82 +15,92 @@ Reducing to 1 oop (`EntityKeyImpl`) makes it flattenable, enabling C2 to scalari
 | `EntityKeyMap$Node` | 189,432 | 40 bytes | 7.6 MB |
 | **Combined** | | | **17.4 MB** |
 
-## Priority 1: Eliminate EntityKeyWithPersister allocations
+## Priority 1: Eliminate EntityKeyWithPersister from the hot path (IMPLEMENTED)
 
 ### Problem
-`EntityKeyWithPersister` (identifier + persister, 2 oops) is created by `generateEntityKey()` on every entity
-lookup. It's too large for NULLABLE_ATOMIC_FLAT, so C2 cannot fully eliminate its heap allocation when the object
-escapes to a callee (e.g., a `PersistenceContext` method).
+`EntityKeyWithPersister` (identifier + persister, 2 oops = 8 bytes payload) was created by
+`generateEntityKey()` on every entity lookup. At 2 oops it is too large for NULLABLE_ATOMIC_FLAT
+(9 bytes rounded to 16 > MAX_ATOMIC_OP_SIZE of 8), so the JVM cannot flatten it in arrays or
+scalarize it as aggressively.
 
-### Solution: Pass persister as a separate parameter
+### Solution
+Two-pronged approach:
 
-Change the `PersistenceContext` and `EntityKeyMap` methods to accept `(EntityPersister persister, EntityKey key)`
-instead of relying on `key.getPersister()`. Then:
+1. **`generateEntityKey()` now returns `EntityKeyImpl`** (1 oop = 4 bytes payload → flattenable).
+   This eliminates 408k × 24 bytes = **9.8 MB** of `EntityKeyWithPersister` allocations on the
+   hot path. With JEP 401, `EntityKeyImpl` as a value class can be NULLABLE_ATOMIC_FLAT at 8 bytes
+   per element and C2 can scalarize it via `InlineTypePassFieldsAsArgs=true`.
 
-1. `generateEntityKey()` returns `EntityKeyImpl` (1 oop → flattenable value class)
-2. `EntityKeyWithPersister` is eliminated from hot paths
-3. Callers pass the persister alongside the key (they already have it)
+2. **`PersistenceContext` methods now accept `(EntityPersister, EntityKey)`** as separate parameters.
+   Every method that previously relied on `key.getPersister()` now receives the persister explicitly.
+   The `StatefulPersistenceContext` implementation uses this persister directly for `EntityKeyMap`
+   operations, eliminating the need for the key to carry a persister reference.
 
-**API changes needed:**
-```java
-// PersistenceContext interface — add persister parameter
-EntityHolder getEntityHolder(EntityPersister persister, EntityKey key);
-EntityHolder addEntityHolder(EntityPersister persister, EntityKey key, Object entity);
-Object getEntity(EntityPersister persister, EntityKey key);
-// etc.
-```
+### Backward compatibility
+- `EntityKeyWithPersister` is **retained** for keys reconstructed from `EntityKeyMap.Node.toEntityKey()`
+  (used by `EntityHolder.getEntityKey()`, iteration, etc.) and for `EntityKey.of(id, persister)`.
+- The `EntityKey` interface still defines `getPersister()`, `getEntityName()`, and `isBatchLoadable()`
+  as **default methods** that delegate to a persister — they work on `EntityKeyWithPersister` and
+  throw `UnsupportedOperationException` on bare `EntityKeyImpl`.
+- Code that receives keys from `EntityHolder` or `EntityEntry` (which store keys created by
+  `Node.toEntityKey()`) can still call `key.getPersister()`.
 
-**Estimated allocation savings**: ~408k × 24 bytes = **9.8 MB eliminated per session lifecycle**.
-With C2 scalarization, `EntityKeyImpl` (as a value class) would never reach the heap.
+### Net effect
+The hot path `generateEntityKey() → persistenceContext.getEntityHolder() / claimEntityHolderIfPossible()`
+creates only `EntityKeyImpl` (1 oop, flattenable value class). The persister travels as a separate
+method parameter. No `EntityKeyWithPersister` is allocated on this path.
 
-### Call site impact
-~57 call sites need the persister parameter. All already have the persister available in scope
-(they used it to call `generateEntityKey(id, persister)` in the first place).
-
-## Priority 2: Reduce EntityKeyMap$Node allocations
+## Priority 2: Reduce EntityKeyMap$Node allocations (DEFERRED)
 
 ### Problem
 Each `EntityKeyMap.Node` is 40 bytes with 7 fields:
 - `int hash` (4 bytes)
-- `String rootEntityName` (4 bytes, compressed oop)
+- `String rootEntityName` (4 bytes compressed oop)
 - `Object identifier` (4 bytes)
 - `Object changesetId` (4 bytes, usually null)
 - `EntityPersister persister` (4 bytes)
 - `V value` (4 bytes)
 - `Node next` (4 bytes)
-= 28 bytes payload + 16 byte header = 44 → aligned to 48? (or 40 with compressed oops)
+= 28 bytes payload + 16 byte header ≈ 40 bytes (with alignment)
 
-### Possible improvements
+189k instances × 40 bytes = 7.6 MB.
 
-**Option A: Remove fields from Node**
-- Remove `changesetId` — for non-temporal entities (vast majority), this is always null. Could use a separate
-  "temporal overlay" map for the rare temporal case.
-- Remove `persister` from Node — it can be looked up from `rootEntityName` via the MetamodelMapping when needed
-  (trade CPU for memory).
-- Minimal Node: `hash(4) + rootEntityName(4) + identifier(4) + value(4) + next(4)` = 20 + 16 header = 36 → 40 aligned.
-  Saves ~0 bytes (still 40). Would need to remove one more field (e.g., store rootEntityName hash instead of String ref) to get to 32.
+### Option A: Remove fields from Node
 
-**Option B: Open addressing hash map**
-- Eliminate `Node` objects entirely — store keys and values in parallel arrays.
-- `Object[] identifiers`, `String[] rootEntityNames`, `Object[] values`, `int[] hashes`
-- No `next` pointer (open addressing uses probing).
-- Trades Node allocations for array space. With value class arrays, identifiers could be flat.
-- Complex to implement (tombstones for delete, different resize strategy).
+Remove `changesetId` (null for 99%+ of entities) and `persister` (derivable from `rootEntityName`
+via `MetamodelMapping`). This saves 8 bytes per Node → 32 bytes/node, saving ~1.5 MB at 189k nodes.
 
-**Option C: Combined key-value flat storage (speculative)**
-- If EntityKeyImpl is a flattenable value class (1 oop, ≤ 8 bytes), an array `EntityKeyImpl[]` is flat.
-- An open-addressing map with `EntityKeyImpl[]` as the key array would store identifiers inline with no per-entry allocation.
-- Combined with a separate `Object[] values` array (for the non-value-type value), this eliminates Nodes entirely.
-- Still needs `String[] rootEntityNames` and `int[] hashes` for entity-type discrimination.
-- Net per-entry storage: 8 (flat key) + 4 (rootEntityName oop) + 4 (value oop) + 4 (hash) = 20 bytes vs current 40 bytes in Node.
+**Trade-off**: Temporal keys need a separate overlay map. Persister lookup on read adds CPU cost.
 
-## C2 Escape Analysis Results
+### Option B: Open addressing hash map
 
-Both 1-oop and 2-oop value classes show `Scalar` (eliminated) for the value class itself.
-The bottleneck is the `Integer.valueOf()` / identifier boxing, which creates `NotScalar` InlineType nodes.
-In real Hibernate usage, identifiers are pre-existing objects (not boxed in a loop), so this is not a concern.
+Replace chaining (linked list of Nodes) with open addressing (linear/quadratic probing). Eliminates
+the `Node` class entirely — keys and values stored in parallel arrays:
 
-The real win comes from **eliminating the EntityKeyWithPersister class entirely**, not from better scalarization —
-because in the actual Hibernate code, the key escapes to PersistenceContext methods (passes across call boundaries),
-and C2 may not inline those deeply enough to scalarize the key. With a 1-oop value class, even if it escapes,
-the allocation is smaller (16 bytes vs 24 bytes) and more likely to be scalarized by C2's InlineTypePassFieldsAsArgs.
+```
+int[] hashes          — 4 bytes/entry
+String[] entityNames  — 4 bytes/entry (compressed oop)
+Object[] identifiers  — 4 bytes/entry (compressed oop)  
+Object[] values       — 4 bytes/entry (compressed oop)
+```
+
+Total: ~16 bytes/entry vs 40 bytes/Node = **60% reduction**.
+
+With value class arrays (if `EntityKeyImpl` is flattenable), `identifiers` could be a flat array
+at 8 bytes/element (NULLABLE_ATOMIC_FLAT), but this doesn't save vs 4-byte compressed oops.
+
+**Trade-off**: Open addressing is more complex (tombstone-based deletion, different resize strategy,
+load factor constraints). Probe chains can degrade under high load.
+
+### Option C: Hybrid — inline key fields into EntityHolderImpl
+
+Since every `EntityKeyMap<EntityHolderImpl>` Node maps to exactly one `EntityHolderImpl`, we could
+store the key-part fields (`hash`, `rootEntityName`, `identifier`) directly inside `EntityHolderImpl`
+and use the holder array itself as the hash map storage. This eliminates the separate Node allocation.
+
+Per-entry storage: `EntityHolderImpl` already has ~48 bytes. Adding `hash(4) + rootEntityName(4) +
+identifier(4) + next(4)` = 16 bytes → 64 bytes total, vs current 40 (Node) + 48 (Holder) = 88 bytes.
+Saves ~24 bytes/entry = **~4.5 MB at 189k entries**.
+
+**Trade-off**: Tightly couples the hash map with the holder class. Only works for the
+`entitiesByKey` map, not for `entitySnapshotsByKey` or other EntityKeyMap usages.

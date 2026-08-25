@@ -283,7 +283,7 @@ public interface QueryProducer {
 	 * using an implicit mapping to the specified Java entity type.
 	 * <p>
 	 * The given class must be an entity class. This method is equivalent to
-	 * {@code createNativeQuery(sqlString).addEntity(tableAlias, resultClass)}.
+	 * {@code createNativeQuery(sqlString).addEntity( tableAlias.getPersister(), tableAlias, resultClass)}.
 	 *
 	 * @param sqlString Native (SQL) query string
 	 * @param resultClass The Java entity class to map results to

@@ -119,7 +119,7 @@ public class EntityIdentityInsertAction extends AbstractEntityInsertAction  {
 			persister.setIdentifier( instance, generatedId, session );
 			persistenceContext.registerInsertedKey( persister, generatedId );
 			entityKey = session.generateEntityKey( generatedId, persister );
-			persistenceContext.checkUniqueness( entityKey, getInstance() );
+			persistenceContext.checkUniqueness( getPersister(), entityKey, getInstance() );
 		}
 
 		//TODO: this bit actually has to be called after all cascades!
@@ -170,7 +170,7 @@ public class EntityIdentityInsertAction extends AbstractEntityInsertAction  {
 	protected void postInsert() {
 		if ( isDelayed ) {
 			getSession().getPersistenceContextInternal()
-					.replaceDelayedEntityIdentityInsertKeys( delayedEntityKey, generatedId );
+					.replaceDelayedEntityIdentityInsertKeys( getPersister(), delayedEntityKey, generatedId );
 		}
 		getEventListenerGroups().eventListenerGroup_POST_INSERT
 				.fireLazyEventOnEachListener( this::newPostInsertEvent, PostInsertEventListener::onPostInsert );

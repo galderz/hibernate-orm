@@ -822,7 +822,7 @@ public abstract class AbstractCollectionPersister
 		else {
 			// Remove keys of any entities that have been evicted
 			subselect.getResultingEntityKeys()
-					.removeIf( entityKey -> !persistenceContext.containsEntity( entityKey ) );
+					.removeIf( entityKey -> !persistenceContext.containsEntity( entityKey.getPersister(), entityKey ) );
 			// Run a subquery loader
 			return createSubSelectLoader( subselect, session );
 		}

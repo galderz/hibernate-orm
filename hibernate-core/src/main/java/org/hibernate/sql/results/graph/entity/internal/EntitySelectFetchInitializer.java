@@ -169,6 +169,7 @@ public class EntitySelectFetchInitializer<Data extends EntitySelectFetchInitiali
 
 			final var entityKey = data.getRowProcessingState().getSession().generateEntityKey( data.entityIdentifier, concreteDescriptor );
 			final var entityHolder = persistenceContext.getEntityHolder(
+					concreteDescriptor,
 					entityKey
 			);
 
@@ -213,7 +214,7 @@ public class EntitySelectFetchInitializer<Data extends EntitySelectFetchInitiali
 		final var session = rowProcessingState.getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
 		final EntityKey entityKey = data.getRowProcessingState().getSession().generateEntityKey( data.entityIdentifier, concreteDescriptor );
-		initialize( data, persistenceContext.getEntityHolder( entityKey ), session, persistenceContext );
+		initialize( data, persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey ), session, persistenceContext );
 	}
 
 	protected void initialize(
@@ -257,6 +258,7 @@ public class EntitySelectFetchInitializer<Data extends EntitySelectFetchInitiali
 		if ( instance == null ) {
 			checkNotFound( data );
 			persistenceContext.claimEntityHolderIfPossible(
+					concreteDescriptor,
 					data.getRowProcessingState().getSession().generateEntityKey( data.entityIdentifier, concreteDescriptor ),
 					null,
 					data.getRowProcessingState().getJdbcValuesSourceProcessingState(),

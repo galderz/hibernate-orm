@@ -162,11 +162,11 @@ public class BytecodeEnhancementMetadataPojoImpl implements BytecodeEnhancementM
 		processIfManagedEntity( entity, BytecodeEnhancementMetadataPojoImpl::useTracker );
 
 		// add the entity (proxy) instance to the PC
-		persistenceContext.addEnhancedProxy( entityKey, entity );
+		persistenceContext.addEnhancedProxy( entityKey.getPersister(), entityKey, entity );
 
 		// if requested, add the "holder entry" to the PC
 		if ( addEmptyEntry ) {
-			final var entityHolder = persistenceContext.getEntityHolder( entityKey );
+			final var entityHolder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
 			final var entityEntry = persistenceContext.addEntry(
 					entity,
 					Status.MANAGED,

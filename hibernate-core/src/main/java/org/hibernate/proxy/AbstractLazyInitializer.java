@@ -291,7 +291,7 @@ public abstract class AbstractLazyInitializer implements LazyInitializer {
 	public final void initializeWithoutLoadIfPossible() {
 		if ( !initialized && session != null && session.isOpenOrWaitingForAutoClose() ) {
 			final var key = session.generateEntityKey( getInternalIdentifier(), getEntityDescriptor() );
-			final Object entity = session.getPersistenceContextInternal().getEntity( key );
+			final Object entity = session.getPersistenceContextInternal().getEntity( key.getPersister(), key );
 			if ( entity != null ) {
 				setImplementation( entity );
 			}
@@ -339,7 +339,7 @@ public abstract class AbstractLazyInitializer implements LazyInitializer {
 	private Object getProxyOrNull() {
 		final var entityKey = generateEntityKeyOrNull( getInternalIdentifier(), session, getEntityName() );
 		return entityKey != null && session != null && session.isOpenOrWaitingForAutoClose()
-				? session.getPersistenceContextInternal().getProxy( entityKey )
+				? session.getPersistenceContextInternal().getProxy( entityKey.getPersister(), entityKey )
 				: null;
 	}
 
@@ -358,7 +358,7 @@ public abstract class AbstractLazyInitializer implements LazyInitializer {
 	@Override
 	public final Object getImplementation(SharedSessionContractImplementor session) throws HibernateException {
 		final var entityKey = generateEntityKeyOrNull( getInternalIdentifier(), session, getEntityName() );
-		return entityKey == null ? null : session.getPersistenceContext().getEntity( entityKey );
+		return entityKey == null ? null : session.getPersistenceContext().getEntity( entityKey.getPersister(), entityKey );
 	}
 
 	@Override
@@ -424,7 +424,7 @@ public abstract class AbstractLazyInitializer implements LazyInitializer {
 				final var key = generateEntityKeyOrNull( getInternalIdentifier(), session, getEntityName() );
 				if ( key != null ) {
 					final var persistenceContext = session.getPersistenceContext();
-					if ( persistenceContext.containsEntity( key ) ) {
+					if ( persistenceContext.containsEntity( key.getPersister(), key ) ) {
 						persistenceContext.setReadOnly( target, readOnly );
 					}
 				}

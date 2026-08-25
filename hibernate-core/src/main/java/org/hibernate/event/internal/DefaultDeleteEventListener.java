@@ -97,7 +97,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 				final Object id = lazyInitializer.getInternalIdentifier();
 				final var key = source.generateEntityKey( id, persister );
 				final var persistenceContext = source.getPersistenceContextInternal();
-				final var entityHolder = persistenceContext.getEntityHolder( key );
+				final var entityHolder = persistenceContext.getEntityHolder( key.getPersister(), key );
 				if ( (entityHolder == null || entityHolder.getEntity() == null || !entityHolder.isInitialized())
 						&& canBeDeletedWithoutLoading( source, persister ) ) {
 					if ( event.getFactory().getSessionFactoryOptions().isJpaBootstrap() && entityHolder == null ) {
@@ -105,8 +105,8 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 					}
 					// optimization for deleting certain entities without loading them
 					persistenceContext.reassociateProxy( object, id );
-					if ( !persistenceContext.containsDeletedUnloadedEntityKey( key ) ) {
-						persistenceContext.registerDeletedUnloadedEntityKey( key );
+					if ( !persistenceContext.containsDeletedUnloadedEntityKey( key.getPersister(), key ) ) {
+						persistenceContext.registerDeletedUnloadedEntityKey( key.getPersister(), key );
 
 						if ( persister.hasOwnedCollections() ) {
 							// we're deleting an unloaded proxy with collections
@@ -178,7 +178,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 		final var key = source.generateEntityKey( id, persister);
 		final Object version = persister.getVersion( entity );
 
-//		persistenceContext.checkUniqueness( key, entity );
+//		persistenceContext.checkUniqueness( key.getPersister(), key, entity );
 		if ( !flushAndEvictExistingEntity( key, version, persister, source ) ) {
 
 			new OnUpdateVisitor( source, id, entity ).process( entity, persister );
@@ -212,7 +212,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 	private static boolean flushAndEvictExistingEntity(
 			EntityKey key, Object version, EntityPersister persister, EventSource source) {
 		final var persistenceContext = source.getPersistenceContextInternal();
-		final Object existingEntity = persistenceContext.getEntity( key );
+		final Object existingEntity = persistenceContext.getEntity( key.getPersister(), key );
 		if ( existingEntity != null ) {
 			if ( persistenceContext.getEntry( existingEntity ).getStatus().isDeletedOrGone() ) {
 				// already deleted, no work to do
@@ -247,7 +247,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 		final var source = event.getSession();
 		if ( entityEntry.getStatus().isDeletedOrGone()
 				|| source.getPersistenceContextInternal()
-						.containsDeletedUnloadedEntityKey( entityEntry.getEntityKey() ) ) {
+						.containsDeletedUnloadedEntityKey( entityEntry.getPersister(), entityEntry.getEntityKey() ) ) {
 			EVENT_LISTENER_LOGGER.alreadyDeleted();
 		}
 		else {
@@ -404,7 +404,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 				.nullifyTransientReferences( entityEntry.getDeletedState() );
 		new Nullability( session, NullabilityCheckType.DELETE )
 				.checkNullability( entityEntry.getDeletedState(), persister );
-		persistenceContext.registerNullifiableEntityKey( key );
+		persistenceContext.registerNullifiableEntityKey( key.getPersister(), key );
 
 		final var actionQueue = session.getActionQueue();
 		if ( isOrphanRemovalBeforeUpdates ) {

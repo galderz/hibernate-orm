@@ -52,7 +52,7 @@ public class DefaultEvictEventListener implements EvictEventListener {
 					source.getFactory().getMappingMetamodel()
 							.getEntityDescriptor( lazyInitializer.getEntityName() );
 			final var key = source.generateEntityKey( id, persister );
-			final var holder = persistenceContext.detachEntity( key );
+			final var holder = persistenceContext.detachEntity( key.getPersister(), key );
 			// if the entity has been evicted then its holder is null
 			if ( holder != null && !lazyInitializer.isUninitialized() ) {
 				final Object entity = holder.getEntity();
@@ -122,7 +122,7 @@ public class DefaultEvictEventListener implements EvictEventListener {
 		// This is now handled by removeEntity()
 		//session.getPersistenceContext().removeDatabaseSnapshot(key);
 
-		persistenceContext.removeEntityHolder( key );
+		persistenceContext.removeEntityHolder( key.getPersister(), key );
 		persistenceContext.removeEntry( object );
 
 		Cascade.cascade( CascadingActions.EVICT, CascadePoint.AFTER_EVICT, session, persister, object );

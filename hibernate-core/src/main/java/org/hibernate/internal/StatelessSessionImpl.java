@@ -1100,7 +1100,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 
 		// First, try to load it from the temporary PersistenceContext
 		final var persistenceContext = getPersistenceContext();
-		final var holder = persistenceContext.getEntityHolder( entityKey );
+		final var holder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
 		if ( holder != null && holder.getEntity() != null ) {
 			// We found it in the temporary persistence context.
 			// Should indicate we are in the midst of processing a
@@ -1175,7 +1175,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 
 	private Object createProxy(EntityKey entityKey) {
 		final Object proxy = entityKey.getPersister().createProxy( entityKey.getIdentifier(), this );
-		getPersistenceContext().addProxy( entityKey, proxy );
+		getPersistenceContext().addProxy( entityKey.getPersister(), entityKey, proxy );
 		return proxy;
 	}
 
@@ -1344,14 +1344,14 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 		checkOpen();
 
 		final var persistenceContext = getPersistenceContext();
-		final Object result = persistenceContext.getEntity( key );
+		final Object result = persistenceContext.getEntity( key.getPersister(), key );
 		if ( result != null ) {
 			return result;
 		}
 
 		final Object newObject = getInterceptor().getEntity( key.getEntityName(), key.getIdentifier() );
 		if ( newObject != null ) {
-			persistenceContext.addEntity( key, newObject );
+			persistenceContext.addEntity( key.getPersister(), key, newObject );
 			return newObject;
 		}
 

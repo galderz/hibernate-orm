@@ -163,7 +163,7 @@ public class DefaultMergeEventListener
 					copiedId = null;
 					entityKey = source.generateEntityKey( originalId, persister );
 				}
-				final Object managedEntity = persistenceContext.getEntity( entityKey );
+				final Object managedEntity = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
 				entry = persistenceContext.getEntry( managedEntity );
 				if ( entry != null ) {
 					// we have a special case of a detached entity from the
@@ -202,6 +202,7 @@ public class DefaultMergeEventListener
 				if ( persistenceContext.getEntry( entity ) == null ) {
 					final var persister = source.getEntityPersister( entityName, entity );
 					assert persistenceContext.containsDeletedUnloadedEntityKey(
+							persister,
 							source.generateEntityKey(
 									persister.getIdentifier( entity, event.getSession() ),
 									persister
@@ -599,7 +600,7 @@ public class DefaultMergeEventListener
 			final Object id = persister.getIdentifier( entity, source );
 			if ( id != null ) {
 				final var entityKey = source.generateEntityKey( id, persister );
-				final Object managedEntity = persistenceContext.getEntity( entityKey );
+				final Object managedEntity = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
 				entry = persistenceContext.getEntry( managedEntity );
 			}
 		}

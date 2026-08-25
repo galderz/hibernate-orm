@@ -142,7 +142,7 @@ public class UpdateCoordinatorStandard extends AbstractMutationCoordinator imple
 	private Object @Nullable [] getLoadedState(Object id, SharedSessionContractImplementor session) {
 		return entityPersister.hasPartitionedSelectionMapping()
 				? session.getPersistenceContextInternal()
-				.getEntityHolder( session.generateEntityKey( id, entityPersister ) ).getEntityEntry().getLoadedState()
+				.getEntityHolder( entityPersister, session.generateEntityKey( id, entityPersister ) ).getEntityEntry().getLoadedState()
 				: null;
 	}
 

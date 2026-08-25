@@ -231,7 +231,7 @@ public abstract class AbstractSaveEventListener<C> implements CallbackRegistryCo
 	private static EntityKey entityKey(Object id, EntityPersister persister, EventSource source) {
 		final var key = source.generateEntityKey( id, persister );
 		final var persistenceContext = source.getPersistenceContextInternal();
-		final Object old = persistenceContext.getEntity( key );
+		final Object old = persistenceContext.getEntity( key.getPersister(), key );
 		if ( old != null ) {
 			if ( persistenceContext.getEntry( old ).getStatus() == Status.DELETED ) {
 				source.forceFlush( persistenceContext.getEntry( old ) );
@@ -240,7 +240,7 @@ public abstract class AbstractSaveEventListener<C> implements CallbackRegistryCo
 				throw new NonUniqueObjectException( id, persister.getEntityName() );
 			}
 		}
-		else if ( persistenceContext.containsDeletedUnloadedEntityKey( key ) ) {
+		else if ( persistenceContext.containsDeletedUnloadedEntityKey( key.getPersister(), key ) ) {
 			source.forceFlush( key );
 		}
 		return key;
@@ -290,7 +290,7 @@ public abstract class AbstractSaveEventListener<C> implements CallbackRegistryCo
 				false
 		);
 		if ( original.getLoadedState() != null ) {
-			persistenceContext.getEntityHolder( key ).setEntityEntry( original );
+			persistenceContext.getEntityHolder( key.getPersister(), key ).setEntityEntry( original );
 		}
 
 		cascadeBeforeSave( source, persister, entity, context );

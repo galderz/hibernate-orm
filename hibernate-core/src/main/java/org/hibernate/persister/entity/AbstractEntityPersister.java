@@ -3725,7 +3725,7 @@ public abstract class AbstractEntityPersister
 			if ( loaded == null ) {
 				final var persistenceContext = session.getPersistenceContext();
 				persistenceContext.removeEntry( entity );
-				persistenceContext.removeEntity( entityKey );
+				persistenceContext.removeEntity( entityKey.getPersister(), entityKey );
 				factory.getEntityNotFoundDelegate().handleEntityNotFound( entityKey.getEntityName(), id );
 			}
 			return readEnhancedEntityAttribute( entity, id, nameOfAttributeBeingAccessed, session );
@@ -4087,7 +4087,7 @@ public abstract class AbstractEntityPersister
 								&& !persistenceContext.getLoadContexts().isLoadingFinished() ) {
 							// check if we're currently loading this entity instance, the version
 							// will be null, but the entity cannot be considered transient
-							final var holder = persistenceContext.getEntityHolder( EntityKey.of( id, this ) );
+							final var holder = persistenceContext.getEntityHolder( this, EntityKey.of( id, this ) );
 							if ( holder != null && holder.isEventuallyInitialized() && holder.getEntity() == entity ) {
 								return false;
 							}

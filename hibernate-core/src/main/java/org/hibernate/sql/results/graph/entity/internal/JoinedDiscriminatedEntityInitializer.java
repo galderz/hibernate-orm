@@ -315,6 +315,7 @@ public class JoinedDiscriminatedEntityInitializer
 
 				final var entityKey = data.getRowProcessingState().getSession().generateEntityKey( data.entityIdentifier, concreteDescriptor );
 				final var entityHolder = session.getPersistenceContextInternal().getEntityHolder(
+						concreteDescriptor,
 						entityKey
 				);
 

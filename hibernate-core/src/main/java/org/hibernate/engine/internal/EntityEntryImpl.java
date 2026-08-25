@@ -339,7 +339,7 @@ public final class EntityEntryImpl implements Serializable, EntityEntry {
 		}
 		else {
 			return session.getPersistenceContextInternal()
-					.containsNullifiableEntityKey( this::getEntityKey );
+					.containsNullifiableEntityKey( persister, this::getEntityKey );
 		}
 	}
 

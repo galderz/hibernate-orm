@@ -573,7 +573,7 @@ public class SessionImpl
 		checkOpenOrWaitingForAutoClose();
 		// todo : should this get moved to PersistentContext?
 		// logically, is PersistentContext the "thing" to which an interceptor gets attached?
-		final Object result = persistenceContext.getEntity( key );
+		final Object result = persistenceContext.getEntity( key.getPersister(), key );
 		if ( result == null ) {
 			final Object newObject =
 					getInterceptor()

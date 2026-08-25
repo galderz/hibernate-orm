@@ -518,7 +518,7 @@ public static void lockCollectionTable(
 		final Map<Object, EntityDetails> map = new HashMap<>();
 		final var persistenceContext = executionContext.getSession().getPersistenceContext();
 		entityKeys.forEach( (entityKey) -> {
-			final Object instance = persistenceContext.getEntity( entityKey );
+			final Object instance = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
 			final var entityEntry = persistenceContext.getEntry( instance );
 			map.put( entityKey.getIdentifierValue(), new EntityDetails( entityKey, entityEntry, instance ) );
 		} );

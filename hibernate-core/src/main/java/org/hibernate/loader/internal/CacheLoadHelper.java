@@ -193,7 +193,7 @@ public class CacheLoadHelper {
 				// Clean up the inconsistent return class entity from the persistence context
 				final var persistenceContext = source.getPersistenceContext();
 				persistenceContext.removeEntry( entity );
-				persistenceContext.removeEntity( entityKey );
+				persistenceContext.removeEntity( entityKey.getPersister(), entityKey );
 				return null;
 			}
 			return entity;
@@ -222,7 +222,7 @@ public class CacheLoadHelper {
 		// make it circular-reference safe
 		final var persistenceContext = session.getPersistenceContext();
 		if ( isManagedEntity( entity ) ) {
-			final var entityHolder = persistenceContext.addEntityHolder( entityKey, entity );
+			final var entityHolder = persistenceContext.addEntityHolder( entityKey.getPersister(), entityKey, entity );
 			final var entityEntry = persistenceContext.addReferenceEntry( entity, Status.READ_ONLY );
 			entityHolder.setEntityEntry( entityEntry );
 		}
@@ -251,7 +251,7 @@ public class CacheLoadHelper {
 				source.getFactory().getMappingMetamodel()
 						.getEntityDescriptor( entry.getSubclass() );
 		final var persistenceContext = source.getPersistenceContextInternal();
-		final var oldHolder = persistenceContext.getEntityHolder( entityKey );
+		final var oldHolder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
 
 		final Object entity;
 		if ( instanceToLoad != null ) {
@@ -277,7 +277,7 @@ public class CacheLoadHelper {
 		}
 
 		// make it circular-reference safe
-		final var holder = persistenceContext.addEntityHolder( entityKey, entity );
+		final var holder = persistenceContext.addEntityHolder( entityKey.getPersister(), entityKey, entity );
 		final Object proxy = holder.getProxy();
 		final boolean isReadOnly;
 		if ( proxy != null ) {
@@ -431,7 +431,7 @@ public class CacheLoadHelper {
 			final Object version,
 			final SharedSessionContractImplementor session) {
 		final var persistenceContext = session.getPersistenceContextInternal();
-		final var entityHolder = persistenceContext.addEntityHolder( key, object );
+		final var entityHolder = persistenceContext.addEntityHolder( key.getPersister(), key, object );
 		final var entityEntry = persistenceContext.addEntry(
 				object,
 				Status.LOADING,

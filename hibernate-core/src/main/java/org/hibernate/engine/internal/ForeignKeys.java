@@ -222,11 +222,13 @@ public final class ForeignKeys {
 				final Object entity = lazyInitializer.getImplementation( session );
 				if ( entity == null ) {
 					// an unloaded proxy might be scheduled for deletion
+					final var fkPersister = session.getFactory().getMappingMetamodel()
+							.getEntityDescriptor( lazyInitializer.getEntityName() );
 					return persistenceContext.containsDeletedUnloadedEntityKey(
+							fkPersister,
 							session.generateEntityKey(
 									lazyInitializer.getInternalIdentifier(),
-									session.getFactory().getMappingMetamodel()
-											.getEntityDescriptor( lazyInitializer.getEntityName() )
+									fkPersister
 							)
 					);
 				}

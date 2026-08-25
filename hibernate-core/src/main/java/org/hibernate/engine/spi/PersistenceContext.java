@@ -128,7 +128,7 @@ public interface PersistenceContext {
 	 * @return The cached snapshot
 	 * @throws IllegalStateException if the cached snapshot was {@code NO_ROW}.
 	 */
-	Object[] getCachedDatabaseSnapshot(EntityKey key);
+	Object[] getCachedDatabaseSnapshot(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Get the values of the natural id fields as known to the underlying database, or null if the entity has no
@@ -147,7 +147,7 @@ public interface PersistenceContext {
 	 * @param key The key under which to add an entity
 	 * @param entity The entity instance to add
 	 */
-	void addEntity(EntityKey key, Object entity);
+	void addEntity(EntityPersister persister, EntityKey key, Object entity);
 
 	/**
 	 * Get the entity instance associated with the given key
@@ -156,7 +156,7 @@ public interface PersistenceContext {
 	 *
 	 * @return The matching entity, or {@code null}
 	 */
-	Object getEntity(EntityKey key);
+	Object getEntity(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Is there an entity with the given key in the persistence context
@@ -165,7 +165,7 @@ public interface PersistenceContext {
 	 *
 	 * @return {@code true} indicates an entity was found; otherwise {@code false}
 	 */
-	boolean containsEntity(EntityKey key);
+	boolean containsEntity(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Remove an entity.  Also clears up all other state associated with the entity aside from the {@link EntityEntry}
@@ -174,7 +174,7 @@ public interface PersistenceContext {
 	 *
 	 * @return The matching entity
 	 */
-	Object removeEntity(EntityKey key);
+	Object removeEntity(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Add an entity to the cache by unique key
@@ -310,7 +310,7 @@ public interface PersistenceContext {
 	 *
 	 * @param object The entity reference against which to perform the uniqueness check.
 	 */
-	void checkUniqueness(EntityKey key, Object object);
+	void checkUniqueness(EntityPersister persister, EntityKey key, Object object);
 
 	/**
 	 * If the existing proxy is insufficiently "narrow" (derived), instantiate a new proxy
@@ -351,7 +351,7 @@ public interface PersistenceContext {
 	 * Cross between {@link #addEntity(EntityKey, Object)} and {@link #addProxy(EntityKey, Object)}
 	 * for use with enhancement-as-proxy
 	 */
-	void addEnhancedProxy(EntityKey key, PersistentAttributeInterceptable entity);
+	void addEnhancedProxy(EntityPersister persister, EntityKey key, PersistentAttributeInterceptable entity);
 
 	/**
 	 * Get the entity that owns this persistent collection
@@ -501,12 +501,12 @@ public interface PersistenceContext {
 	/**
 	 * Get an existing proxy by key
 	 */
-	Object getProxy(EntityKey key);
+	Object getProxy(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Add a proxy to the session cache
 	 */
-	void addProxy(EntityKey key, Object proxy);
+	void addProxy(EntityPersister persister, EntityKey key, Object proxy);
 
 	/**
 	 * Remove a proxy from the session cache.
@@ -517,7 +517,7 @@ public interface PersistenceContext {
 	 * @param key The key of the entity proxy to be removed
 	 * @return The proxy reference.
 	 */
-	Object removeProxy(EntityKey key);
+	Object removeProxy(EntityPersister persister, EntityKey key);
 
 	/**
 	 * Return an existing entity holder for the entity key, possibly creating one if necessary.
@@ -530,19 +530,20 @@ public interface PersistenceContext {
 	 */
 	@Incubating
 	EntityHolder claimEntityHolderIfPossible(
+			EntityPersister persister,
 			EntityKey key,
 			@Nullable Object entity,
 			JdbcValuesSourceProcessingState processingState,
 			EntityInitializer<?> initializer);
 
 	@Incubating
-	EntityHolder addEntityHolder(EntityKey key, Object entity);
+	EntityHolder addEntityHolder(EntityPersister persister, EntityKey key, Object entity);
 
-	@Nullable EntityHolder getEntityHolder(EntityKey key);
+	@Nullable EntityHolder getEntityHolder(EntityPersister persister, EntityKey key);
 
-	boolean containsEntityHolder(EntityKey key);
+	boolean containsEntityHolder(EntityPersister persister, EntityKey key);
 
-	@Nullable EntityHolder removeEntityHolder(EntityKey key);
+	@Nullable EntityHolder removeEntityHolder(EntityPersister persister, EntityKey key);
 
 	@Incubating
 	void postLoad(JdbcValuesSourceProcessingState processingState, Consumer<EntityHolder> loadedConsumer);
@@ -797,7 +798,7 @@ public interface PersistenceContext {
 
 	void endRemoveOrphanBeforeUpdates();
 
-	void replaceDelayedEntityIdentityInsertKeys(EntityKey oldKey, Object generatedId);
+	void replaceDelayedEntityIdentityInsertKeys(EntityPersister persister, EntityKey oldKey, Object generatedId);
 
 	@Internal
 	void replaceEntityEntryRowId(Object entity, Object rowId);
@@ -842,12 +843,12 @@ public interface PersistenceContext {
 	 * @return true if the EntityKey had been registered before using {@link #registerNullifiableEntityKey(EntityKey)}
 	 * @see #registerNullifiableEntityKey(EntityKey)
 	 */
-	boolean containsNullifiableEntityKey(Supplier<EntityKey> sek);
+	boolean containsNullifiableEntityKey(EntityPersister persister, Supplier<EntityKey> sek);
 
 	/**
 	 * Registers an {@link EntityKey} as nullifiable on this {@link PersistenceContext}.
 	 */
-	void registerNullifiableEntityKey(EntityKey key);
+	void registerNullifiableEntityKey(EntityPersister persister, EntityKey key);
 
 	/**
 	 * @return true if no {@link EntityKey} was registered as nullifiable on this {@link PersistenceContext}.
@@ -855,11 +856,11 @@ public interface PersistenceContext {
 	 */
 	boolean isNullifiableEntityKeysEmpty();
 
-	boolean containsDeletedUnloadedEntityKey(EntityKey ek);
+	boolean containsDeletedUnloadedEntityKey(EntityPersister persister, EntityKey ek);
 
-	void registerDeletedUnloadedEntityKey(EntityKey key);
+	void registerDeletedUnloadedEntityKey(EntityPersister persister, EntityKey key);
 
-	void removeDeletedUnloadedEntityKey(EntityKey key);
+	void removeDeletedUnloadedEntityKey(EntityPersister persister, EntityKey key);
 
 	boolean containsDeletedUnloadedEntityKeys();
 
@@ -910,7 +911,7 @@ public interface PersistenceContext {
 	/**
 		Remove the {@link EntityHolder} and set its state to {@code DETACHED}.
 	 */
-	default @Nullable EntityHolder detachEntity(EntityKey key) {
-		return removeEntityHolder( key );
+	default @Nullable EntityHolder detachEntity(EntityPersister persister, EntityKey key) {
+		return removeEntityHolder( persister, key );
 	}
 }

@@ -156,7 +156,7 @@ public class DiscriminatedEntityInitializer
 			final var concreteDescriptor = data.concreteDescriptor;
 			final var entityKey = data.getRowProcessingState().getSession().generateEntityKey( identifier, concreteDescriptor );
 			final var persistenceContext = session.getPersistenceContextInternal();
-			final var holder = persistenceContext.getEntityHolder( entityKey );
+			final var holder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
 			final Object instance;
 			if ( holder != null ) {
 				instance = holder.getEntity();
@@ -251,6 +251,7 @@ public class DiscriminatedEntityInitializer
 
 		final var entityKey = session.generateEntityKey( data.entityIdentifier, data.concreteDescriptor );
 		final var entityHolder = session.getPersistenceContextInternal().getEntityHolder(
+				data.concreteDescriptor,
 				entityKey
 		);
 

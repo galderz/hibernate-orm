@@ -6,7 +6,6 @@ package org.hibernate.engine.spi;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
 import org.hibernate.persister.entity.EntityPersister;
@@ -14,6 +13,7 @@ import org.hibernate.persister.entity.EntityPersister;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static org.hibernate.pretty.MessageHelper.infoString;
+
 
 /**
  * Uniquely identifies an entity instance in a particular Session by identifier.
@@ -25,11 +25,7 @@ import static org.hibernate.pretty.MessageHelper.infoString;
  * information are handled externally by {@link EntityKeyMap}, which stores
  * this metadata in its internal {@code Node} structure.
  * <p>
- * Some implementations (e.g. those returned by
- * {@link SharedSessionContractImplementor#generateEntityKey}) additionally
- * carry a reference to the {@link EntityPersister} for convenience, exposed
- * via {@link #getPersister()} and {@link #getEntityName()}.
- * <p>
+ *
  * Performance considerations: lots of instances of this type are created at
  * runtime. The canonical implementation ({@link EntityKeyImpl}) stores just
  * a single {@code Object identifier} field.
@@ -68,10 +64,25 @@ public interface EntityKey extends Serializable {
 		return false;
 	}
 
+
+
+	// -- factory methods ------------------------------------------------------
+
 	/**
-	 * The entity persister, if available. Some lightweight key instances
-	 * (e.g. {@link EntityKeyImpl}) do not carry a persister reference and
-	 * will throw {@link UnsupportedOperationException}.
+	 * Create an {@code EntityKey} for the given identifier (without persister).
+	 */
+	static EntityKey of(Object id) {
+		return new EntityKeyImpl( id );
+	}
+
+	/**
+	 * The entity persister, if available. {@link EntityKeyImpl} does not carry
+	 * a persister and will throw. Keys obtained from {@link EntityKeyMap}
+	 * iteration or from {@link EntityHolder#getEntityKey()} do carry a persister.
+	 * <p>
+	 * Prefer passing the persister explicitly via the
+	 * {@link PersistenceContext} method that accepts
+	 * {@code (EntityPersister, EntityKey)}.
 	 */
 	default EntityPersister getPersister() {
 		throw new UnsupportedOperationException(
@@ -80,8 +91,7 @@ public interface EntityKey extends Serializable {
 	}
 
 	/**
-	 * The entity name, if available. Delegates to
-	 * {@link #getPersister()}{@code .getEntityName()}.
+	 * The entity name, if available. Delegates to {@link #getPersister()}.
 	 */
 	default String getEntityName() {
 		return getPersister().getEntityName();
@@ -97,15 +107,7 @@ public interface EntityKey extends Serializable {
 	// -- factory methods ------------------------------------------------------
 
 	/**
-	 * Create an {@code EntityKey} for the given identifier (without persister).
-	 */
-	static EntityKey of(Object id) {
-		return new EntityKeyImpl( id );
-	}
-
-	/**
-	 * Create an {@code EntityKey} with a persister reference for convenience
-	 * access to entity name and batch-loadability.
+	 * Create an {@code EntityKey} with a persister reference.
 	 */
 	static EntityKey of(Object id, EntityPersister persister) {
 		return new EntityKeyWithPersister( id, persister );
@@ -129,13 +131,9 @@ public interface EntityKey extends Serializable {
 	// -- serialization --------------------------------------------------------
 
 	/**
-	 * Custom serialization routine used during serialization of a
-	 * Session/PersistenceContext for increased performance.
-	 *
-	 * @param oos The stream to which we should write the serial data.
-	 * @throws IOException Thrown by Java I/O
+	 * Custom serialization. Only works on keys that carry a persister.
 	 */
-	default void serialize(ObjectOutputStream oos) throws IOException {
+	default void serialize(java.io.ObjectOutputStream oos) throws IOException {
 		oos.writeObject( getIdentifier() );
 		oos.writeObject( getEntityName() );
 		oos.writeObject( getChangesetId() );

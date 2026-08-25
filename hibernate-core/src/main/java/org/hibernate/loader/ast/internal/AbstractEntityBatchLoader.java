@@ -92,7 +92,7 @@ public abstract class AbstractEntityBatchLoader<T>
 			initializeEntities( ids, id, entityInstance, lockOptions, readOnly, session );
 			final var entityKey = session.generateEntityKey( id, getLoadable().getEntityPersister() );
 			//noinspection unchecked
-			return (T) session.getPersistenceContext().getEntity( entityKey );
+			return (T) session.getPersistenceContext().getEntity( entityKey.getPersister(), entityKey );
 		}
 	}
 }

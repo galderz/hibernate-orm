@@ -178,7 +178,7 @@ public class EntityDeleteAction extends EntityAction {
 		}
 		entry.postDelete();
 		final var key = entry.getEntityKey();
-		persistenceContext.removeEntityHolder( key );
+		persistenceContext.removeEntityHolder( persister, key );
 		removeCacheItem( cacheKey );
 		persistenceContext.getNaturalIdResolutions()
 				.removeSharedResolution( id, naturalIdValues, persister, true );
@@ -192,10 +192,10 @@ public class EntityDeleteAction extends EntityAction {
 			Object cacheKey) {
 		final var persistenceContext = session.getPersistenceContextInternal();
 		final var key = session.generateEntityKey( id, persister );
-		if ( !persistenceContext.containsDeletedUnloadedEntityKey( key ) ) {
+		if ( !persistenceContext.containsDeletedUnloadedEntityKey( persister, key ) ) {
 			throw new AssertionFailure( "deleted proxy should be for an unloaded entity: " + key );
 		}
-		persistenceContext.removeProxy( key );
+		persistenceContext.removeProxy( persister, key );
 		removeCacheItem( cacheKey );
 	}
 

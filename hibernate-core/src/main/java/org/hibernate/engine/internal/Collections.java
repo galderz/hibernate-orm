@@ -54,7 +54,7 @@ public final class Collections {
 		if ( loadedPersister != null && loadedPersister.hasOrphanDelete() ) {
 			final Object ownerId = getOwnerId( collection, session, loadedPersister );
 			final var key = session.generateEntityKey( ownerId, loadedPersister.getOwnerEntityPersister() );
-			final Object owner = persistenceContext.getEntity( key );
+			final Object owner = persistenceContext.getEntity( loadedPersister.getOwnerEntityPersister(), key );
 			if ( owner == null ) {
 				throw new AssertionFailure( "collection owner not associated with session: " + loadedPersister.getRole() );
 			}
@@ -322,7 +322,7 @@ public final class Collections {
 				&& !persister.isOneToMany() && persister.isCascadeDeleteEnabled() ) {
 			final var entityKey = session.generateEntityKey( key, persister.getOwnerEntityPersister() );
 			final var persistenceContext = session.getPersistenceContextInternal();
-			final var entry = persistenceContext.getEntry( persistenceContext.getEntity( entityKey ) );
+			final var entry = persistenceContext.getEntry( persistenceContext.getEntity( persister.getOwnerEntityPersister(), entityKey ) );
 			return entry == null || entry.getStatus().isDeletedOrGone();
 		}
 		else {

@@ -186,7 +186,7 @@ public abstract class EntityAction
 							.getEntityDescriptor( entityName );
 			this.instance =
 					session.getPersistenceContext()
-							.getEntity( session.generateEntityKey( id, persister ) );
+							.getEntity( persister, session.generateEntityKey( id, persister ) );
 		}
 	}
 

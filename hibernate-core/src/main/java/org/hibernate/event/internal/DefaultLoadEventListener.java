@@ -230,7 +230,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		// if there is already a managed entity instance associated with the PC, return it
 		final var session = event.getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
-		final var holder = persistenceContext.getEntityHolder( keyToLoad );
+		final var holder = persistenceContext.getEntityHolder( keyToLoad.getPersister(), keyToLoad );
 		final Object managed = holder == null ? null : holder.getEntity();
 		if ( managed != null ) {
 			return options.isCheckDeleted() && wasDeleted( persistenceContext, managed ) ? null : managed;
@@ -253,7 +253,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		// This is the case where the proxy is a separate object:
 		// look for a proxy
 		final var persistenceContext = event.getSession().getPersistenceContextInternal();
-		final var holder = persistenceContext.getEntityHolder( keyToLoad );
+		final var holder = persistenceContext.getEntityHolder( keyToLoad.getPersister(), keyToLoad );
 		final Object proxy = holder == null ? null : holder.getProxy();
 		if ( proxy != null ) {
 			// narrow the existing proxy to the type we're looking for
@@ -281,7 +281,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 			EntityHolder holder) {
 		final var session = event.getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
-//		if ( persistenceContext.containsDeletedUnloadedEntityKey( keyToLoad ) ) {
+//		if ( persistenceContext.containsDeletedUnloadedEntityKey( keyToLoad.getPersister(), keyToLoad ) ) {
 //			// an unloaded proxy with this key was deleted
 //			return null;
 //		}
@@ -430,7 +430,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		final Object proxy = persister.createProxy( event.getEntityId(), session );
 		final var persistenceContext = session.getPersistenceContextInternal();
 		persistenceContext.getBatchFetchQueue().addBatchLoadableEntityKey( keyToLoad );
-		persistenceContext.addProxy( keyToLoad, proxy );
+		persistenceContext.addProxy( keyToLoad.getPersister(), keyToLoad, proxy );
 		return proxy;
 	}
 
@@ -501,7 +501,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		}
 
 		final var session = event.getSession();
-		if ( session.getPersistenceContextInternal().containsDeletedUnloadedEntityKey( keyToLoad ) ) {
+		if ( session.getPersistenceContextInternal().containsDeletedUnloadedEntityKey( keyToLoad.getPersister(), keyToLoad ) ) {
 			return null;
 		}
 		else if ( session.getCacheMode() != CacheMode.REFRESH_SESSION ) {

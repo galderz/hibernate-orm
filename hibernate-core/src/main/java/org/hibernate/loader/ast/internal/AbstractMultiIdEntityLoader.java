@@ -185,7 +185,7 @@ public abstract class AbstractMultiIdEntityLoader<T> implements MultiIdEntityLoa
 			final var entityKey = (EntityKey) results.get( position );
 			session.getPersistenceContextInternal().getBatchFetchQueue()
 					.removeBatchLoadableEntityKey( entityKey );
-			final Object entity = persistenceContext.getEntity( entityKey );
+			final Object entity = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
 			final Object result =
 					entity == null
 						// the entity is locally deleted, and the options ask that we not return such entities

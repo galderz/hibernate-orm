@@ -377,8 +377,8 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public Object[] getCachedDatabaseSnapshot(EntityKey key) {
-		final Object snapshot = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( key.getPersister(), key );
+	public Object[] getCachedDatabaseSnapshot(EntityPersister persister, EntityKey key) {
+		final Object snapshot = entitySnapshotsByKey == null ? null : entitySnapshotsByKey.get( persister, key );
 		if ( snapshot == NO_ROW ) {
 			throw new IllegalStateException(
 					"persistence context reported no row snapshot for "
@@ -390,13 +390,14 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	@Override
 	public EntityHolder claimEntityHolderIfPossible(
+			EntityPersister persister,
 			EntityKey key,
 			Object entity,
 			JdbcValuesSourceProcessingState processingState,
 			EntityInitializer<?> initializer) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
-		var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, newEntityHolder );
+		var holder = getOrInitializeNewHolder().withEntity( key, persister, entity );
+		final var oldHolder = entityHolderMap.putIfAbsent( persister, key, newEntityHolder );
 		if ( oldHolder != null ) {
 			// An initializer can't claim an entity holder if it's already initialized
 			if ( oldHolder.isInitialized() ) {
@@ -425,13 +426,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public @Nullable EntityHolder getEntityHolder(EntityKey key) {
-		return entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
+	public @Nullable EntityHolder getEntityHolder(EntityPersister persister, EntityKey key) {
+		return entitiesByKey == null ? null : entitiesByKey.get( persister, key );
 	}
 
 	@Override
-	public boolean containsEntityHolder(EntityKey key) {
-		return entitiesByKey != null && entitiesByKey.get( key.getPersister(), key ) != null;
+	public boolean containsEntityHolder(EntityPersister persister, EntityKey key) {
+		return entitiesByKey != null && entitiesByKey.get( persister, key ) != null;
 	}
 
 	@Override
@@ -487,15 +488,15 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public void addEntity(EntityKey key, Object entity) {
-		addEntityHolder( key, entity );
+	public void addEntity(EntityPersister persister, EntityKey key, Object entity) {
+		addEntityHolder( persister, key, entity );
 	}
 
 	@Override
-	public EntityHolder addEntityHolder(EntityKey key, Object entity) {
+	public EntityHolder addEntityHolder(EntityPersister persister, EntityKey key, Object entity) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
-		var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
+		var holder = getOrInitializeNewHolder().withEntity( key, persister, entity );
+		final var oldHolder = entityHolderMap.putIfAbsent( persister, key, holder );
 		if ( oldHolder != null ) {
 			if ( oldHolder.proxy != null && oldHolder.entity == null ) {
 				// When there was a proxy before, we have to set the implementation of the proxy to the new entity
@@ -518,26 +519,26 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public Object getEntity(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
+	public Object getEntity(EntityPersister persister, EntityKey key) {
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( persister, key );
 		return holder == null || holder.state == EntityHolderState.UNINITIALIZED ? null : holder.entity;
 	}
 
 	@Override
-	public boolean containsEntity(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
+	public boolean containsEntity(EntityPersister persister, EntityKey key) {
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( persister, key );
 		return holder != null && holder.entity != null && holder.state != EntityHolderState.UNINITIALIZED;
 	}
 
 	@Override
-	public Object removeEntity(EntityKey key) {
-		final var holder = removeHolder( key );
+	public Object removeEntity(EntityPersister persister, EntityKey key) {
+		final var holder = removeHolder( persister, key );
 		if ( holder != null ) {
 			final Object entity = holder.entity;
 			if ( holder.proxy != null ) {
 				holder.entity = null;
 				holder.state = EntityHolderState.UNINITIALIZED;
-				entitiesByKey.put( key.getPersister(), key, holder );
+				entitiesByKey.put( persister, key, holder );
 			}
 			return entity;
 		}
@@ -545,19 +546,19 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public @Nullable EntityHolder removeEntityHolder(EntityKey key) {
-		return removeHolder( key );
+	public @Nullable EntityHolder removeEntityHolder(EntityPersister persister, EntityKey key) {
+		return removeHolder( persister, key );
 	}
 
-	private EntityHolderImpl removeHolder(EntityKey key) {
-		final var holder = findHolder( key );
+	private EntityHolderImpl removeHolder(EntityPersister persister, EntityKey key) {
+		final var holder = findHolder( persister, key );
 		// Clear all parent cache
 		parentsByChild = null;
 		if ( entitySnapshotsByKey != null ) {
-			entitySnapshotsByKey.remove( key.getPersister(), key );
+			entitySnapshotsByKey.remove( persister, key );
 		}
 		if ( nullifiableEntityKeys != null ) {
-			nullifiableEntityKeys.remove( key.getPersister(), key );
+			nullifiableEntityKeys.remove( persister, key );
 		}
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
@@ -567,9 +568,9 @@ class StatefulPersistenceContext implements PersistenceContext {
 		return holder;
 	}
 
-	private EntityHolderImpl findHolder(EntityKey key) {
+	private EntityHolderImpl findHolder(EntityPersister persister, EntityKey key) {
 		if ( entitiesByKey != null ) {
-			final var holder = entitiesByKey.remove( key.getPersister(), key );
+			final var holder = entitiesByKey.remove( persister, key );
 			if ( entitiesByUniqueKey != null ) {
 				final Object entity = holder == null ? null : holder.entity;
 				final var itr = entitiesByUniqueKey.values().iterator();
@@ -630,7 +631,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			final boolean existsInDatabase,
 			final EntityPersister persister,
 			final boolean disableVersionIncrement) {
-		final var entityHolder = addEntityHolder( entityKey, entity );
+		final var entityHolder = addEntityHolder( persister, entityKey, entity );
 		final var entityEntry = addEntry(
 				entity,
 				status,
@@ -800,13 +801,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public void checkUniqueness(EntityKey key, Object object) throws HibernateException {
-		final Object entity = getEntity( key );
+	public void checkUniqueness(EntityPersister persister, EntityKey key, Object object) throws HibernateException {
+		final Object entity = getEntity( persister, key );
 		if ( entity == object ) {
 			throw new AssertionFailure( "object already associated, but no entry was found" );
 		}
 		if ( entity != null ) {
-			throw new NonUniqueObjectException( key.getIdentifier(), key.getEntityName() );
+			throw new NonUniqueObjectException( key.getIdentifier(), persister.getEntityName() );
 		}
 	}
 
@@ -823,7 +824,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			// If an impl is passed, there is really no point in creating a proxy.
 			// It would just be extra processing.  Just return the impl
 			if ( object != null ) {
-				removeProxyByKey( key );
+				removeProxyByKey( persister, key );
 				return object;
 			}
 
@@ -834,7 +835,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				final Object impl = lazyInitializer.getImplementation();
 				// can we return it?
 				if ( concreteProxyClass.isInstance( impl ) ) {
-					removeProxyByKey( key );
+					removeProxyByKey( persister, key );
 					return impl;
 				}
 			}
@@ -854,9 +855,9 @@ class StatefulPersistenceContext implements PersistenceContext {
 		}
 	}
 
-	private Object removeProxyByKey(final EntityKey key) {
+	private Object removeProxyByKey(EntityPersister persister, EntityKey key) {
 		if ( entitiesByKey != null ) {
-			final var entityHolder = entitiesByKey.get( key.getPersister(), key );
+			final var entityHolder = entitiesByKey.get( persister, key );
 			if ( entityHolder != null ) {
 				final Object proxy = entityHolder.proxy;
 				entityHolder.proxy = null;
@@ -872,7 +873,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 			return impl;
 		}
 		else {
-			final Object proxy = getProxy( key );
+			final Object proxy = getProxy( persister, key );
 			return proxy != null ? narrowProxy( proxy, persister, key, impl ) : impl;
 		}
 	}
@@ -892,10 +893,10 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public void addEnhancedProxy(EntityKey key, PersistentAttributeInterceptable entity) {
+	public void addEnhancedProxy(EntityPersister persister, EntityKey key, PersistentAttributeInterceptable entity) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
-		final var holder = getOrInitializeNewHolder().withEntity( key, key.getPersister(), entity );
-		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
+		final var holder = getOrInitializeNewHolder().withEntity( key, persister, entity );
+		final var oldHolder = entityHolderMap.putIfAbsent( persister, key, holder );
 		if ( oldHolder != null ) {
 			oldHolder.entity = entity;
 			oldHolder.state = EntityHolderState.ENHANCED_PROXY;
@@ -915,7 +916,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 		// Same is true in the case of ToOne associations with property-ref
 		final var ownerPersister = collectionPersister.getOwnerEntityPersister();
 		if ( ownerPersister.getIdentifierType().getReturnedClass().isInstance( key ) ) {
-			return getEntity( session.generateEntityKey( key, collectionPersister.getOwnerEntityPersister() ) );
+			final var ownerEP = collectionPersister.getOwnerEntityPersister(); return getEntity( ownerEP, session.generateEntityKey( key, ownerEP ) );
 		}
 		// we have a property-ref type mapping for the collection key.
 		// But that could show up a few ways here:
@@ -924,7 +925,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 		else if ( ownerPersister.isInstance( key ) ) {
 			final Object ownerId = ownerPersister.getIdentifier( key, session );
 			return ownerId == null ? null
-					: getEntity( session.generateEntityKey( ownerId, ownerPersister ) );
+					: getEntity( ownerPersister, session.generateEntityKey( ownerId, ownerPersister ) );
 		}
 		else {
 			final var collectionType = collectionPersister.getCollectionType();
@@ -960,12 +961,12 @@ class StatefulPersistenceContext implements PersistenceContext {
 					// 			going that route
 					final Object ownerId =
 							ownerPersister.getIdByUniqueKey( key, collectionType.getLHSPropertyName(), session );
-					return getEntity( session.generateEntityKey( ownerId, ownerPersister ) );
+					return getEntity( ownerPersister, session.generateEntityKey( ownerId, ownerPersister ) );
 				}
 			}
 			else {
 				// as a last resort this is what the old code did...
-				return getEntity( session.generateEntityKey( key, collectionPersister.getOwnerEntityPersister() ) );
+				final var ownerEP = collectionPersister.getOwnerEntityPersister(); return getEntity( ownerEP, session.generateEntityKey( key, ownerEP ) );
 			}
 		}
 	}
@@ -1220,16 +1221,16 @@ class StatefulPersistenceContext implements PersistenceContext {
 //	}
 
 	@Override
-	public Object getProxy(EntityKey key) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.get( key.getPersister(), key );
+	public Object getProxy(EntityPersister persister, EntityKey key) {
+		final var holder = entitiesByKey == null ? null : entitiesByKey.get( persister, key );
 		return holder == null ? null : holder.proxy;
 	}
 
 	@Override
-	public void addProxy(EntityKey key, Object proxy) {
+	public void addProxy(EntityPersister persister, EntityKey key, Object proxy) {
 		final var entityHolderMap = getOrInitializeEntitiesByKey();
-		final var holder = getOrInitializeNewHolder().withProxy( key, key.getPersister(), proxy );
-		final var oldHolder = entityHolderMap.putIfAbsent( key.getPersister(), key, holder );
+		final var holder = getOrInitializeNewHolder().withProxy( key, persister, proxy );
+		final var oldHolder = entityHolderMap.putIfAbsent( persister, key, holder );
 		if ( oldHolder != null ) {
 			oldHolder.proxy = proxy;
 		}
@@ -1239,13 +1240,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public Object removeProxy(EntityKey key) {
+	public Object removeProxy(EntityPersister persister, EntityKey key) {
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
 			fetchQueue.removeBatchLoadableEntityKey( key );
 			fetchQueue.removeSubselect( key );
 		}
-		return removeProxyByKey( key );
+		return removeProxyByKey( persister, key );
 	}
 
 	/**
@@ -1759,14 +1760,14 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public void replaceDelayedEntityIdentityInsertKeys(EntityKey oldKey, Object generatedId) {
-		final var holder = entitiesByKey == null ? null : entitiesByKey.remove( oldKey.getPersister(), oldKey );
+	public void replaceDelayedEntityIdentityInsertKeys(EntityPersister persister, EntityKey oldKey, Object generatedId) {
+		final var holder = entitiesByKey == null ? null : entitiesByKey.remove( persister, oldKey );
 		final Object entity = holder == null ? null : holder.entity;
 		final var oldEntry = entityEntryContext.removeEntityEntry( entity );
 		parentsByChild = null;
 
 		final var newKey = session.generateEntityKey( generatedId, oldEntry.getPersister() );
-		final var entityHolder = addEntityHolder( newKey, entity );
+		final var entityHolder = addEntityHolder( oldEntry.getPersister(), newKey, entity );
 		final var entityEntry = addEntry(
 				entity,
 				oldEntry.getStatus(),
@@ -1797,7 +1798,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				oldEntry.getPersister(),
 				oldEntry.isBeingReplicated()
 		);
-		getEntityHolder( oldEntry.getEntityKey() ).setEntityEntry( entityEntry );
+		getEntityHolder( oldEntry.getPersister(), oldEntry.getEntityKey() ).setEntityEntry( entityEntry );
 	}
 
 	/**
@@ -2212,18 +2213,18 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public boolean containsNullifiableEntityKey(Supplier<EntityKey> sek) {
+	public boolean containsNullifiableEntityKey(EntityPersister persister, Supplier<EntityKey> sek) {
 		return nullifiableEntityKeys != null
 			&& !nullifiableEntityKeys.isEmpty()
-			&& nullifiableEntityKeys.contains( sek.get().getPersister(), sek.get() );
+			&& nullifiableEntityKeys.contains( persister, sek.get() );
 	}
 
 	@Override
-	public void registerNullifiableEntityKey(EntityKey key) {
+	public void registerNullifiableEntityKey(EntityPersister persister, EntityKey key) {
 		if ( nullifiableEntityKeys == null ) {
 			nullifiableEntityKeys = new EntityKeySet();
 		}
-		nullifiableEntityKeys.add( key.getPersister(), key );
+		nullifiableEntityKeys.add( persister, key );
 	}
 
 	@Override
@@ -2233,23 +2234,23 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public boolean containsDeletedUnloadedEntityKey(EntityKey ek) {
+	public boolean containsDeletedUnloadedEntityKey(EntityPersister persister, EntityKey ek) {
 		return deletedUnloadedEntityKeys != null
-			&& deletedUnloadedEntityKeys.contains( ek.getPersister(), ek );
+			&& deletedUnloadedEntityKeys.contains( persister, ek );
 	}
 
 	@Override
-	public void registerDeletedUnloadedEntityKey(EntityKey key) {
+	public void registerDeletedUnloadedEntityKey(EntityPersister persister, EntityKey key) {
 		if ( deletedUnloadedEntityKeys == null ) {
 			deletedUnloadedEntityKeys = new EntityKeySet();
 		}
-		deletedUnloadedEntityKeys.add( key.getPersister(), key );
+		deletedUnloadedEntityKeys.add( persister, key );
 	}
 
 	@Override
-	public void removeDeletedUnloadedEntityKey(EntityKey key) {
+	public void removeDeletedUnloadedEntityKey(EntityPersister persister, EntityKey key) {
 		assert deletedUnloadedEntityKeys != null;
-		deletedUnloadedEntityKeys.remove( key.getPersister(), key );
+		deletedUnloadedEntityKeys.remove( persister, key );
 	}
 
 	@Override
@@ -2429,8 +2430,8 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	@Override
-	public EntityHolder detachEntity(EntityKey key) {
-		final var entityHolder = removeHolder( key );
+	public EntityHolder detachEntity(EntityPersister persister, EntityKey key) {
+		final var entityHolder = removeHolder( persister, key );
 		if ( entityHolder != null ) {
 			entityHolder.state = EntityHolderState.DETACHED;
 		}

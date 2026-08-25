@@ -178,7 +178,7 @@ public class EnhancementAsProxyLazinessInterceptor
 		if ( isTemporarySession ) {
 			// Add an entry for this entity in the PC of the temp Session
 			session.getPersistenceContext()
-					.addEnhancedProxy( entityKey, asPersistentAttributeInterceptable( target ) );
+					.addEnhancedProxy( entityKey.getPersister(), entityKey, asPersistentAttributeInterceptable( target ) );
 		}
 
 		return meta.persister.initializeEnhancedEntityUsedAsProxy( target, attributeName, session );

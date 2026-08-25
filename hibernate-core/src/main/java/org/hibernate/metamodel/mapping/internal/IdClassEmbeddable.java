@@ -219,7 +219,7 @@ public class IdClassEmbeddable extends AbstractEmbeddableMapping implements Iden
 										.getEntityPersister();
 						final var entityKey = session.generateEntityKey( object, entityPersister );
 						final var persistenceContext = session.getPersistenceContext();
-						final var holder = persistenceContext.getEntityHolder( entityKey );
+						final var holder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
 						// use the managed object i.e. proxy or initialized entity
 						object = holder == null ? null : holder.getManagedObject();
 						if ( object == null ) {
