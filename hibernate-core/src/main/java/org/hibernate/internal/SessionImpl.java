@@ -569,15 +569,15 @@ public class SessionImpl
 	}
 
 	@Override
-	public Object getEntityUsingInterceptor(EntityKey key) {
+	public Object getEntityUsingInterceptor(EntityPersister persister, EntityKey key) {
 		checkOpenOrWaitingForAutoClose();
 		// todo : should this get moved to PersistentContext?
 		// logically, is PersistentContext the "thing" to which an interceptor gets attached?
-		final Object result = persistenceContext.getEntity( key.getPersister(), key );
+		final Object result = persistenceContext.getEntity( persister, key );
 		if ( result == null ) {
 			final Object newObject =
 					getInterceptor()
-							.getEntity( key.getEntityName(), key.getIdentifier() );
+							.getEntity( persister.getEntityName(), key.getIdentifier() );
 			if ( newObject != null ) {
 				lock( newObject, LockMode.NONE );
 			}
@@ -1533,21 +1533,21 @@ public class SessionImpl
 
 	@Override
 	public void forceFlush(EntityEntry entityEntry) {
-		forceFlush( entityEntry.getEntityKey() );
+		forceFlush( entityEntry.getPersister(), entityEntry.getEntityKey() );
 	}
 
 	@Override
-	public void forceFlush(EntityKey key) {
+	public void forceFlush(EntityPersister persister, EntityKey key) {
 		if ( SESSION_LOGGER.isTraceEnabled() ) {
 			SESSION_LOGGER.flushingToForceDeletion(
-					infoString( key.getPersister(), key.getIdentifier(), getFactory() ) );
+					infoString( persister, key.getIdentifier(), getFactory() ) );
 		}
 
 		if ( persistenceContext.getCascadeLevel() > 0 ) {
 			throw new ObjectDeletedException(
 					"deleted object would be re-saved by cascade (remove deleted object from associations)",
 					key.getIdentifier(),
-					key.getPersister().getEntityName()
+					persister.getEntityName()
 			);
 		}
 		checkOpenOrWaitingForAutoClose();

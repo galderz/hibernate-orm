@@ -1100,7 +1100,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 
 		// First, try to load it from the temporary PersistenceContext
 		final var persistenceContext = getPersistenceContext();
-		final var holder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
+		final var holder = persistenceContext.getEntityHolder( persister, entityKey );
 		if ( holder != null && holder.getEntity() != null ) {
 			// We found it in the temporary persistence context.
 			// Should indicate we are in the midst of processing a
@@ -1136,12 +1136,12 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 						// Entities with subclasses that define a ProxyFactory
 						// can create a HibernateProxy.
 						SESSION_LOGGER.creatingHibernateProxyToHonorLaziness();
-						return createProxy( entityKey );
+						return createProxy( persister, entityKey );
 					}
-					return enhancementMetadata.createEnhancedProxy( entityKey, false, this );
+					return enhancementMetadata.createEnhancedProxy( persister, entityKey, false, this );
 				}
 				else if ( !persister.hasSubclasses() ) {
-					return enhancementMetadata.createEnhancedProxy( entityKey, false, this );
+					return enhancementMetadata.createEnhancedProxy( persister, entityKey, false, this );
 				}
 				// If we get here, then the entity class has subclasses and there
 				// is no HibernateProxy factory. The entity will be loaded below.
@@ -1151,7 +1151,7 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 					final Object existingProxy = holder == null ? null : holder.getProxy();
 					return existingProxy != null
 							? persistenceContext.narrowProxy( existingProxy, persister, entityKey, null )
-							: createProxy( entityKey );
+							: createProxy( persister, entityKey );
 				}
 			}
 		}
@@ -1173,9 +1173,9 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 		}
 	}
 
-	private Object createProxy(EntityKey entityKey) {
-		final Object proxy = entityKey.getPersister().createProxy( entityKey.getIdentifier(), this );
-		getPersistenceContext().addProxy( entityKey.getPersister(), entityKey, proxy );
+	private Object createProxy(EntityPersister persister, EntityKey entityKey) {
+		final Object proxy = persister.createProxy( entityKey.getIdentifier(), this );
+		getPersistenceContext().addProxy( persister, entityKey, proxy );
 		return proxy;
 	}
 
@@ -1340,18 +1340,18 @@ public class StatelessSessionImpl extends AbstractSharedSessionContract implemen
 	}
 
 	@Override
-	public Object getEntityUsingInterceptor(EntityKey key) {
+	public Object getEntityUsingInterceptor(EntityPersister persister, EntityKey key) {
 		checkOpen();
 
 		final var persistenceContext = getPersistenceContext();
-		final Object result = persistenceContext.getEntity( key.getPersister(), key );
+		final Object result = persistenceContext.getEntity( persister, key );
 		if ( result != null ) {
 			return result;
 		}
 
-		final Object newObject = getInterceptor().getEntity( key.getEntityName(), key.getIdentifier() );
+		final Object newObject = getInterceptor().getEntity( persister.getEntityName(), key.getIdentifier() );
 		if ( newObject != null ) {
-			persistenceContext.addEntity( key.getPersister(), key, newObject );
+			persistenceContext.addEntity( persister, key, newObject );
 			return newObject;
 		}
 

@@ -161,7 +161,7 @@ public class SubselectFetch {
 						)
 				);
 				subselectFetch.resultingEntityKeys.add( holder.getDescriptor(), holder.getEntityKey() );
-				batchFetchQueue.addSubselect( holder.getEntityKey(), subselectFetch );
+				batchFetchQueue.addSubselect( holder.getDescriptor(), holder.getEntityKey(), subselectFetch );
 			}
 		}
 	}

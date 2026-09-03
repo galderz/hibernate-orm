@@ -92,7 +92,7 @@ public interface SessionImplementor extends Session, SharedSessionContractImplem
 	/**
 	 * Initiate a flush to force deletion of a re-persisted entity.
 	 */
-	void forceFlush(EntityKey e) throws HibernateException;
+	void forceFlush(EntityPersister persister, EntityKey e) throws HibernateException;
 
 	@Override
 	default <C> void runWithConnection(ConnectionConsumer<C> action) {

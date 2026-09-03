@@ -67,7 +67,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 			toBatchLoad = data.toBatchLoad = new EntityKeyMap<>();
 		}
 		// Always register the entity key for resolution
-		final var persister = data.entityKey.getPersister();
+		final var persister = concreteDescriptor;
 		var parentInfos = toBatchLoad.get( persister, data.entityKey );
 		if ( parentInfos == null ) {
 			parentInfos = new ArrayList<>();

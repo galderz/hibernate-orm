@@ -209,7 +209,7 @@ public class BatchFetchNotFoundIgnoreDynamicStyleTest {
 				.getEntityDescriptor( Task.class );
 		final BatchFetchQueue batchFetchQueue =
 				sessionImplementor.getPersistenceContextInternal().getBatchFetchQueue();
-		assertThat( batchFetchQueue.containsEntityKey( EntityKey.of( id, persister ) ) )
+		assertThat( batchFetchQueue.containsEntityKey( persister, EntityKey.of( id, persister ) ) )
 				.describedAs( "Checking BatchFetchQueue for entry for Task#" + id )
 						.isEqualTo( expected );
 	}

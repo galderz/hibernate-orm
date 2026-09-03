@@ -230,7 +230,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		// if there is already a managed entity instance associated with the PC, return it
 		final var session = event.getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
-		final var holder = persistenceContext.getEntityHolder( keyToLoad.getPersister(), keyToLoad );
+		final var holder = persistenceContext.getEntityHolder( persister, keyToLoad );
 		final Object managed = holder == null ? null : holder.getEntity();
 		if ( managed != null ) {
 			return options.isCheckDeleted() && wasDeleted( persistenceContext, managed ) ? null : managed;
@@ -253,7 +253,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		// This is the case where the proxy is a separate object:
 		// look for a proxy
 		final var persistenceContext = event.getSession().getPersistenceContextInternal();
-		final var holder = persistenceContext.getEntityHolder( keyToLoad.getPersister(), keyToLoad );
+		final var holder = persistenceContext.getEntityHolder( persister, keyToLoad );
 		final Object proxy = holder == null ? null : holder.getProxy();
 		if ( proxy != null ) {
 			// narrow the existing proxy to the type we're looking for
@@ -314,12 +314,12 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		if ( keyToLoad.isBatchLoadable( session.getLoadQueryInfluencers() ) ) {
 			// Add a batch-fetch entry into the queue for this entity
 			session.getPersistenceContextInternal().getBatchFetchQueue()
-					.addBatchLoadableEntityKey( keyToLoad );
+					.addBatchLoadableEntityKey( persister, keyToLoad );
 		}
 		// This is the crux of HHH-11147
 		// create the (uninitialized) entity instance - has only id set
 		return persister.getBytecodeEnhancementMetadata()
-				.createEnhancedProxy( keyToLoad, true, session );
+				.createEnhancedProxy( persister, keyToLoad, true, session );
 	}
 
 	private static Object proxyOrCached(LoadEvent event, EntityPersister persister, EntityKey keyToLoad) {
@@ -429,8 +429,8 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		final var session = event.getSession();
 		final Object proxy = persister.createProxy( event.getEntityId(), session );
 		final var persistenceContext = session.getPersistenceContextInternal();
-		persistenceContext.getBatchFetchQueue().addBatchLoadableEntityKey( keyToLoad );
-		persistenceContext.addProxy( keyToLoad.getPersister(), keyToLoad, proxy );
+		persistenceContext.getBatchFetchQueue().addBatchLoadableEntityKey( persister, keyToLoad );
+		persistenceContext.addProxy( persister, keyToLoad, proxy );
 		return proxy;
 	}
 
@@ -501,12 +501,12 @@ public class DefaultLoadEventListener implements LoadEventListener {
 		}
 
 		final var session = event.getSession();
-		if ( session.getPersistenceContextInternal().containsDeletedUnloadedEntityKey( keyToLoad.getPersister(), keyToLoad ) ) {
+		if ( session.getPersistenceContextInternal().containsDeletedUnloadedEntityKey( persister, keyToLoad ) ) {
 			return null;
 		}
 		else if ( session.getCacheMode() != CacheMode.REFRESH_SESSION ) {
 			final var persistenceContextEntry =
-					loadFromSessionCache( keyToLoad, event.getLockOptions(), options, session );
+					loadFromSessionCache( persister, keyToLoad, event.getLockOptions(), options, session );
 			final Object entity = persistenceContextEntry.entity();
 			if ( entity != null ) {
 				if ( persistenceContextEntry.isManaged() ) {

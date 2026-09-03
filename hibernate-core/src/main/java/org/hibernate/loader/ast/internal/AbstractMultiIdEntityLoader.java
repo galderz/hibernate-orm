@@ -184,8 +184,8 @@ public abstract class AbstractMultiIdEntityLoader<T> implements MultiIdEntityLoa
 			// should be the EntityKey for that entity - reuse it
 			final var entityKey = (EntityKey) results.get( position );
 			session.getPersistenceContextInternal().getBatchFetchQueue()
-					.removeBatchLoadableEntityKey( entityKey );
-			final Object entity = persistenceContext.getEntity( entityKey.getPersister(), entityKey );
+					.removeBatchLoadableEntityKey( entityDescriptor.getEntityPersister(), entityKey );
+			final Object entity = persistenceContext.getEntity( entityDescriptor.getEntityPersister(), entityKey );
 			final Object result =
 					entity == null
 						// the entity is locally deleted, and the options ask that we not return such entities
@@ -229,7 +229,7 @@ public abstract class AbstractMultiIdEntityLoader<T> implements MultiIdEntityLoa
 				throw new IllegalArgumentException( "RemovalsMode.EXCLUDE is incompatible with OrderingMode.ORDERED" );
 			}
 			// look for it in the Session first
-			final var entry = loadFromSessionCache( entityKey, lockOptions, GET, session );
+			final var entry = loadFromSessionCache( entityDescriptor.getEntityPersister(), entityKey, lockOptions, GET, session );
 			final Object entity = entry.entity();
 			if ( entity != null ) {
 				// put a null in the results
@@ -281,7 +281,7 @@ public abstract class AbstractMultiIdEntityLoader<T> implements MultiIdEntityLoa
 				// (actually, we could probably even break on the first null)
 				if ( id != null ) {
 					// found or not, remove the key from the batch-fetch queue
-					batchFetchQueue.removeBatchLoadableEntityKey( session.generateEntityKey( id, persister ) );
+					batchFetchQueue.removeBatchLoadableEntityKey( persister, session.generateEntityKey( id, persister ) );
 				}
 			}
 		}
@@ -378,7 +378,7 @@ public abstract class AbstractMultiIdEntityLoader<T> implements MultiIdEntityLoa
 			SharedSessionContractImplementor session) {
 
 		// look for it in the Session first
-		final var entry = loadFromSessionCache( entityKey, lockOptions, GET, session );
+		final var entry = loadFromSessionCache( entityDescriptor.getEntityPersister(), entityKey, lockOptions, GET, session );
 		final Object sessionEntity;
 		if ( loadOptions.getSessionCheckMode() == SessionCheckMode.ENABLED ) {
 			sessionEntity = entry.entity();

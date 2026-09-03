@@ -97,7 +97,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 				final Object id = lazyInitializer.getInternalIdentifier();
 				final var key = source.generateEntityKey( id, persister );
 				final var persistenceContext = source.getPersistenceContextInternal();
-				final var entityHolder = persistenceContext.getEntityHolder( key.getPersister(), key );
+				final var entityHolder = persistenceContext.getEntityHolder( persister, key );
 				if ( (entityHolder == null || entityHolder.getEntity() == null || !entityHolder.isInitialized())
 						&& canBeDeletedWithoutLoading( source, persister ) ) {
 					if ( event.getFactory().getSessionFactoryOptions().isJpaBootstrap() && entityHolder == null ) {
@@ -105,8 +105,8 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 					}
 					// optimization for deleting certain entities without loading them
 					persistenceContext.reassociateProxy( object, id );
-					if ( !persistenceContext.containsDeletedUnloadedEntityKey( key.getPersister(), key ) ) {
-						persistenceContext.registerDeletedUnloadedEntityKey( key.getPersister(), key );
+					if ( !persistenceContext.containsDeletedUnloadedEntityKey( persister, key ) ) {
+						persistenceContext.registerDeletedUnloadedEntityKey( persister, key );
 
 						if ( persister.hasOwnedCollections() ) {
 							// we're deleting an unloaded proxy with collections
@@ -212,14 +212,14 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 	private static boolean flushAndEvictExistingEntity(
 			EntityKey key, Object version, EntityPersister persister, EventSource source) {
 		final var persistenceContext = source.getPersistenceContextInternal();
-		final Object existingEntity = persistenceContext.getEntity( key.getPersister(), key );
+		final Object existingEntity = persistenceContext.getEntity( persister, key );
 		if ( existingEntity != null ) {
 			if ( persistenceContext.getEntry( existingEntity ).getStatus().isDeletedOrGone() ) {
 				// already deleted, no work to do
 				return true;
 			}
 			else {
-				EVENT_LISTENER_LOGGER.flushAndEvictOnRemove( key.getEntityName() );
+				EVENT_LISTENER_LOGGER.flushAndEvictOnRemove( persister.getEntityName() );
 				source.flush();
 				if ( !persister.isVersioned()
 						|| persister.getVersionType()
@@ -228,7 +228,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 					return false;
 				}
 				else {
-					throw new StaleObjectStateException( key.getEntityName(), key.getIdentifier(),
+					throw new StaleObjectStateException( persister.getEntityName(), key.getIdentifier(),
 							"Persistence context contains a more recent version of the given entity" );
 				}
 			}
@@ -404,7 +404,7 @@ public class DefaultDeleteEventListener implements DeleteEventListener,	Callback
 				.nullifyTransientReferences( entityEntry.getDeletedState() );
 		new Nullability( session, NullabilityCheckType.DELETE )
 				.checkNullability( entityEntry.getDeletedState(), persister );
-		persistenceContext.registerNullifiableEntityKey( key.getPersister(), key );
+		persistenceContext.registerNullifiableEntityKey( persister, key );
 
 		final var actionQueue = session.getActionQueue();
 		if ( isOrphanRemovalBeforeUpdates ) {

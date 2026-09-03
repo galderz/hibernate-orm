@@ -76,11 +76,11 @@ public class SubselectFetchTest {
 					BatchFetchQueue batchFetchQueue = session.getPersistenceContextInternal().getBatchFetchQueue();
 					List<Employee> results = session.createQuery( "from Employee e order by e.id", Employee.class ).getResultList();
 					for ( Employee result : results ) {
-						assertThat( batchFetchQueue.getSubselect( session.generateEntityKey( result.name, employeePersister ) ) ).isNull();
+						assertThat( batchFetchQueue.getSubselect( employeePersister, session.generateEntityKey( result.name, employeePersister ) ) ).isNull();
 						Task task = session.createQuery( "from Task t where t.employee = :e", Task.class )
 								.setParameter( "e", result )
 								.getSingleResult();
-						assertThat( batchFetchQueue.getSubselect( session.generateEntityKey( task.id, taskPersister ) ) ).isNull();
+						assertThat( batchFetchQueue.getSubselect( taskPersister, session.generateEntityKey( task.id, taskPersister ) ) ).isNull();
 					}
 				}
 		);

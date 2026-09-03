@@ -815,14 +815,14 @@ public abstract class AbstractCollectionPersister
 		final var persistenceContext = session.getPersistenceContextInternal();
 		final var subselect =
 				persistenceContext.getBatchFetchQueue()
-						.getSubselect( session.generateEntityKey( key, getOwnerEntityPersister() ) );
+						.getSubselect( getOwnerEntityPersister(), session.generateEntityKey( key, getOwnerEntityPersister() ) );
 		if ( subselect == null ) {
 			return null;
 		}
 		else {
 			// Remove keys of any entities that have been evicted
 			subselect.getResultingEntityKeys()
-					.removeIf( entityKey -> !persistenceContext.containsEntity( entityKey.getPersister(), entityKey ) );
+					.removeIf( entityKey -> !persistenceContext.containsEntity( getOwnerEntityPersister(), entityKey ) );
 			// Run a subquery loader
 			return createSubSelectLoader( subselect, session );
 		}

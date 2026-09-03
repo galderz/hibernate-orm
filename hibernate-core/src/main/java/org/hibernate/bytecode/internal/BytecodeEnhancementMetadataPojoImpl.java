@@ -15,6 +15,7 @@ import org.hibernate.bytecode.enhance.spi.interceptor.LazyAttributesMetadata;
 import org.hibernate.bytecode.spi.BytecodeEnhancementMetadata;
 import org.hibernate.bytecode.spi.NotInstrumentedException;
 import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.engine.spi.ManagedEntity;
 import org.hibernate.engine.spi.PersistentAttributeInterceptable;
 import org.hibernate.engine.spi.PersistentAttributeInterceptor;
@@ -149,8 +150,7 @@ public class BytecodeEnhancementMetadataPojoImpl implements BytecodeEnhancementM
 	}
 
 	@Override
-	public PersistentAttributeInterceptable createEnhancedProxy(EntityKey entityKey, boolean addEmptyEntry, SharedSessionContractImplementor session) {
-		final var persister = entityKey.getPersister();
+	public PersistentAttributeInterceptable createEnhancedProxy(EntityPersister persister, EntityKey entityKey, boolean addEmptyEntry, SharedSessionContractImplementor session) {
 		final Object identifier = entityKey.getIdentifier();
 		final var persistenceContext = session.getPersistenceContext();
 
@@ -162,11 +162,11 @@ public class BytecodeEnhancementMetadataPojoImpl implements BytecodeEnhancementM
 		processIfManagedEntity( entity, BytecodeEnhancementMetadataPojoImpl::useTracker );
 
 		// add the entity (proxy) instance to the PC
-		persistenceContext.addEnhancedProxy( entityKey.getPersister(), entityKey, entity );
+		persistenceContext.addEnhancedProxy( persister, entityKey, entity );
 
 		// if requested, add the "holder entry" to the PC
 		if ( addEmptyEntry ) {
-			final var entityHolder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
+			final var entityHolder = persistenceContext.getEntityHolder( persister, entityKey );
 			final var entityEntry = persistenceContext.addEntry(
 					entity,
 					Status.MANAGED,

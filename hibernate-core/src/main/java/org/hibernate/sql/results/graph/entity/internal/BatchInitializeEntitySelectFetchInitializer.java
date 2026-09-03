@@ -61,13 +61,13 @@ public class BatchInitializeEntitySelectFetchInitializer extends AbstractBatchEn
 		final var entityKey = data.entityKey;
 		final Object instance =
 				data.getRowProcessingState().getSession()
-						.internalLoad( entityKey.getEntityName(), entityKey.getIdentifier(), false, false );
+						.internalLoad( concreteDescriptor.getEntityName(), entityKey.getIdentifier(), false, false );
 		data.setInstance( instance );
 		var toBatchLoad = data.toBatchLoad;
 		if ( toBatchLoad == null ) {
 			toBatchLoad = data.toBatchLoad = new EntityKeySet();
 		}
-		toBatchLoad.add( entityKey.getPersister(), entityKey );
+		toBatchLoad.add( concreteDescriptor, entityKey );
 	}
 
 	@Override

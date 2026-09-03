@@ -214,7 +214,7 @@ public class EntitySelectFetchInitializer<Data extends EntitySelectFetchInitiali
 		final var session = rowProcessingState.getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
 		final EntityKey entityKey = data.getRowProcessingState().getSession().generateEntityKey( data.entityIdentifier, concreteDescriptor );
-		initialize( data, persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey ), session, persistenceContext );
+		initialize( data, persistenceContext.getEntityHolder( concreteDescriptor, entityKey ), session, persistenceContext );
 	}
 
 	protected void initialize(

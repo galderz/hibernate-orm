@@ -197,8 +197,8 @@ public class SessionDelegatorBaseImpl implements SessionImplementor {
 	}
 
 	@Override
-	public Object getEntityUsingInterceptor(EntityKey key) throws HibernateException {
-		return delegate.getEntityUsingInterceptor( key );
+	public Object getEntityUsingInterceptor(EntityPersister persister, EntityKey key) throws HibernateException {
+		return delegate.getEntityUsingInterceptor( persister, key );
 	}
 
 	@Override
@@ -1221,8 +1221,8 @@ public class SessionDelegatorBaseImpl implements SessionImplementor {
 	}
 
 	@Override
-	public void forceFlush(EntityKey e) throws HibernateException {
-		delegate.forceFlush( e );
+	public void forceFlush(EntityPersister persister, EntityKey e) throws HibernateException {
+		delegate.forceFlush( persister, e );
 	}
 
 	@Override

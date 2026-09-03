@@ -66,7 +66,7 @@ public enum EntityState {
 				final var entityPersister = source.getEntityPersister( entityName, entity );
 				final Object identifier = entityPersister.getIdentifier( entity, source );
 				final var entityKey = source.generateEntityKey( identifier, entityPersister );
-				if ( persistenceContext.containsDeletedUnloadedEntityKey( entityKey.getPersister(), entityKey ) ) {
+				if ( persistenceContext.containsDeletedUnloadedEntityKey( entityPersister, entityKey ) ) {
 					return EntityState.DELETED;
 				}
 			}

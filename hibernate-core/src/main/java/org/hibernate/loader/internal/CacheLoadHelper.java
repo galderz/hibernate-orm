@@ -68,16 +68,17 @@ public class CacheLoadHelper {
 	 * @throws HibernateException Generally indicates problems applying a lock mode.
 	 */
 	public static PersistenceContextEntry loadFromSessionCache(
+			EntityPersister persister,
 			EntityKey keyToLoad,
 			LockOptions lockOptions,
 			LoadEventListener.LoadType options,
 			SharedSessionContractImplementor session) {
-		final Object old = session.getEntityUsingInterceptor( keyToLoad );
+		final Object old = session.getEntityUsingInterceptor( persister, keyToLoad );
 		final PersistenceContextEntry.EntityStatus entityStatus;
 		if ( old != null ) {
 			// this object was already loaded
 			final var oldEntry = session.getPersistenceContext().getEntry( old );
-			entityStatus = entityStatus( keyToLoad, options, session, oldEntry, old );
+			entityStatus = entityStatus( persister, keyToLoad, options, session, oldEntry, old );
 			if ( entityStatus == MANAGED ) {
 				upgradeLock( old, oldEntry, lockOptions, session );
 			}
@@ -90,6 +91,7 @@ public class CacheLoadHelper {
 
 	// Used by Hibernate Reactive
 	public static PersistenceContextEntry.EntityStatus entityStatus(
+			EntityPersister persister,
 			EntityKey keyToLoad,
 			LoadEventListener.LoadType options,
 			SharedSessionContractImplementor session,
@@ -100,7 +102,7 @@ public class CacheLoadHelper {
 			return REMOVED_ENTITY_MARKER;
 		}
 		else if ( options.isAllowNulls() && !session.getFactory().getMappingMetamodel()
-				.getEntityDescriptor( keyToLoad.getEntityName() ).isInstance( old ) ) {
+				.getEntityDescriptor( persister.getEntityName() ).isInstance( old ) ) {
 			LOADING_LOGGER.foundEntityWrongType();
 			return INCONSISTENT_RTN_CLASS_MARKER;
 		}
@@ -193,7 +195,7 @@ public class CacheLoadHelper {
 				// Clean up the inconsistent return class entity from the persistence context
 				final var persistenceContext = source.getPersistenceContext();
 				persistenceContext.removeEntry( entity );
-				persistenceContext.removeEntity( entityKey.getPersister(), entityKey );
+				persistenceContext.removeEntity( persister, entityKey );
 				return null;
 			}
 			return entity;
@@ -222,7 +224,7 @@ public class CacheLoadHelper {
 		// make it circular-reference safe
 		final var persistenceContext = session.getPersistenceContext();
 		if ( isManagedEntity( entity ) ) {
-			final var entityHolder = persistenceContext.addEntityHolder( entityKey.getPersister(), entityKey, entity );
+			final var entityHolder = persistenceContext.addEntityHolder( referenceCacheEntry.getSubclassPersister(), entityKey, entity );
 			final var entityEntry = persistenceContext.addReferenceEntry( entity, Status.READ_ONLY );
 			entityHolder.setEntityEntry( entityEntry );
 		}
@@ -251,7 +253,7 @@ public class CacheLoadHelper {
 				source.getFactory().getMappingMetamodel()
 						.getEntityDescriptor( entry.getSubclass() );
 		final var persistenceContext = source.getPersistenceContextInternal();
-		final var oldHolder = persistenceContext.getEntityHolder( entityKey.getPersister(), entityKey );
+		final var oldHolder = persistenceContext.getEntityHolder( persister, entityKey );
 
 		final Object entity;
 		if ( instanceToLoad != null ) {
@@ -277,7 +279,7 @@ public class CacheLoadHelper {
 		}
 
 		// make it circular-reference safe
-		final var holder = persistenceContext.addEntityHolder( entityKey.getPersister(), entityKey, entity );
+		final var holder = persistenceContext.addEntityHolder( persister, entityKey, entity );
 		final Object proxy = holder.getProxy();
 		final boolean isReadOnly;
 		if ( proxy != null ) {
@@ -431,7 +433,7 @@ public class CacheLoadHelper {
 			final Object version,
 			final SharedSessionContractImplementor session) {
 		final var persistenceContext = session.getPersistenceContextInternal();
-		final var entityHolder = persistenceContext.addEntityHolder( key.getPersister(), key, object );
+		final var entityHolder = persistenceContext.addEntityHolder( persister, key, object );
 		final var entityEntry = persistenceContext.addEntry(
 				object,
 				Status.LOADING,

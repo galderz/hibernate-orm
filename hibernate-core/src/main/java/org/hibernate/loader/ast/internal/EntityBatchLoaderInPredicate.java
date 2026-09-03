@@ -151,7 +151,7 @@ public class EntityBatchLoaderInPredicate<T>
 						},
 						(key, relativePosition, absolutePosition) -> {
 							if ( key != null ) {
-								batchFetchQueue.removeBatchLoadableEntityKey( session.generateEntityKey( key, persister ) );
+								batchFetchQueue.removeBatchLoadableEntityKey( persister, session.generateEntityKey( key, persister ) );
 							}
 						},
 						(startIndex) -> {

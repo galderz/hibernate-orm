@@ -888,8 +888,8 @@ abstract class AbstractSharedSessionContract implements SharedSessionContractImp
 	public EntityKey generateEntityKey(Object id, EntityPersister persister) {
 		final Object temporalId = getLoadQueryInfluencers().getTemporalIdentifier();
 		return temporalId != null && temporalId != AuditLog.ALL_CHANGESETS
-				? EntityKey.of( id, persister, temporalId )
-				: EntityKey.of( id, persister );
+				? EntityKey.of( id, temporalId )
+				: EntityKey.of( id );
 	}
 
 	@Override

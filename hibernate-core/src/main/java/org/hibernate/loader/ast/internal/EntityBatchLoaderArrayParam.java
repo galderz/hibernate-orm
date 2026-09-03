@@ -161,7 +161,7 @@ public class EntityBatchLoaderArrayParam<T>
 		for ( Object initializedId : idsToInitialize ) {
 			if ( initializedId != null ) {
 				// found or not, remove the key from the batch-fetch queue
-				batchFetchQueue.removeBatchLoadableEntityKey( session.generateEntityKey( initializedId, persister ) );
+				batchFetchQueue.removeBatchLoadableEntityKey( persister, session.generateEntityKey( initializedId, persister ) );
 			}
 		}
 	}

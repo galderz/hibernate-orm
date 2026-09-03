@@ -36,7 +36,7 @@ public interface EventSource extends SessionImplementor {
 	/**
 	 * Force an immediate flush
 	 */
-	void forceFlush(EntityKey e) throws HibernateException;
+	void forceFlush(EntityPersister persister, EntityKey e) throws HibernateException;
 
 	/**
 	 * Cascade merge an entity instance

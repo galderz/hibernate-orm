@@ -473,8 +473,8 @@ public class SharedSessionDelegatorBaseImpl implements SharedSessionContractImpl
 	}
 
 	@Override
-	public Object getEntityUsingInterceptor(EntityKey key) throws HibernateException {
-		return delegate.getEntityUsingInterceptor( key );
+	public Object getEntityUsingInterceptor(EntityPersister persister, EntityKey key) throws HibernateException {
+		return delegate.getEntityUsingInterceptor( persister, key );
 	}
 
 	@Override

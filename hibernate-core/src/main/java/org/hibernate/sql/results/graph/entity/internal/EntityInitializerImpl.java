@@ -569,7 +569,7 @@ public class EntityInitializerImpl
 		if ( data.getState() == State.RESOLVED ) {
 			rowProcessingState.getSession()
 					.getPersistenceContextInternal()
-					.removeEntityHolder( data.entityKey.getPersister(), data.entityKey );
+					.removeEntityHolder( data.concreteDescriptor, data.entityKey );
 			data.entityKey = null;
 			data.entityHolder = null;
 			data.entityInstanceForNotify = null;
@@ -946,7 +946,7 @@ public class EntityInitializerImpl
 			data.concreteDescriptor = session.getEntityPersister( null, entityInstanceForNotify );
 			resolveEntityKey( data,
 					data.concreteDescriptor.getIdentifier( entityInstanceForNotify, session ) );
-			data.entityHolder = session.getPersistenceContextInternal().getEntityHolder( data.entityKey.getPersister(), data.entityKey );
+			data.entityHolder = session.getPersistenceContextInternal().getEntityHolder( data.concreteDescriptor, data.entityKey );
 			data.setState( State.INITIALIZED );
 			initializeSubInstancesFromParent( data );
 		}
@@ -1160,7 +1160,7 @@ public class EntityInitializerImpl
 				final var implementation = lazyInitializer.getImplementation();
 				data.concreteDescriptor = session.getEntityPersister( null, implementation );
 				resolveEntityKey( data, lazyInitializer.getInternalIdentifier() );
-				data.entityHolder = persistenceContext.getEntityHolder( data.entityKey.getPersister(), data.entityKey );
+				data.entityHolder = persistenceContext.getEntityHolder( data.concreteDescriptor, data.entityKey );
 				final Object proxy = data.entityHolder.getProxy();
 				if ( proxy == instance ) {
 					data.entityInstanceForNotify = implementation;
@@ -1512,7 +1512,7 @@ public class EntityInitializerImpl
 				assert data.entityHolder.getEntityInitializer() == this;
 				// If this initializer owns the entity, we have to remove the entity holder,
 				// because the subsequent loading process will claim the entity
-				session.getPersistenceContextInternal().removeEntityHolder( data.entityKey.getPersister(), data.entityKey );
+				session.getPersistenceContextInternal().removeEntityHolder( data.concreteDescriptor, data.entityKey );
 				return session.internalLoad(
 						data.concreteDescriptor.getEntityName(),
 						data.entityKey.getIdentifier(),
@@ -1672,7 +1672,7 @@ public class EntityInitializerImpl
 		final Object entity =
 				data.getRowProcessingState().getSession()
 						.getPersistenceContextInternal()
-						.getEntity( data.entityKey.getPersister(), data.entityKey );
+						.getEntity( data.concreteDescriptor, data.entityKey );
 		return entity == null
 			|| entity == data.entityInstanceForNotify;
 	}
@@ -1715,7 +1715,7 @@ public class EntityInitializerImpl
 		}
 		data.concreteDescriptor.setValues( entityInstanceForNotify, resolvedEntityState );
 
-		persistenceContext.addEntity( entityKey.getPersister(), entityKey, entityInstanceForNotify );
+		persistenceContext.addEntity( data.concreteDescriptor, entityKey, entityInstanceForNotify );
 
 		// Also register possible unique key entries
 		registerPossibleUniqueKeyEntries( data, resolvedEntityState, session );

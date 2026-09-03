@@ -93,7 +93,7 @@ public class CollectionLoaderSubSelectFetch implements CollectionLoader {
 		List<PersistentCollection<?>> subSelectFetchedCollections = null;
 		if ( ownerEntry != null ) {
 			final var triggerKeyOwnerKey = ownerEntry.getEntityKey();
-			final var registeredFetch = batchFetchQueue.getSubselect( triggerKeyOwnerKey );
+			final var registeredFetch = batchFetchQueue.getSubselect( ownerEntry.getPersister(), triggerKeyOwnerKey );
 			if ( registeredFetch != null ) {
 				subSelectFetchedCollections = arrayList( registeredFetch.getResultingEntityKeys().size() );
 				// there was one, so we want to make sure to prepare the corresponding collection

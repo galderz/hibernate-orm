@@ -10,6 +10,7 @@ import org.hibernate.bytecode.enhance.spi.interceptor.LazyAttributesMetadata;
 import org.hibernate.bytecode.spi.BytecodeEnhancementMetadata;
 import org.hibernate.bytecode.spi.NotInstrumentedException;
 import org.hibernate.engine.spi.EntityKey;
+import org.hibernate.persister.entity.EntityPersister;
 import org.hibernate.engine.spi.PersistentAttributeInterceptable;
 import org.hibernate.engine.spi.PersistentAttributeInterceptor;
 import org.hibernate.engine.spi.SharedSessionContractImplementor;
@@ -73,7 +74,7 @@ public class BytecodeEnhancementMetadataNonPojoImpl implements BytecodeEnhanceme
 	}
 
 	@Override
-	public PersistentAttributeInterceptable createEnhancedProxy(EntityKey keyToLoad, boolean addEmptyEntry, SharedSessionContractImplementor session) {
+	public PersistentAttributeInterceptable createEnhancedProxy(EntityPersister persister, EntityKey keyToLoad, boolean addEmptyEntry, SharedSessionContractImplementor session) {
 		throw new NotInstrumentedException( errorMsg );
 	}
 

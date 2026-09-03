@@ -148,7 +148,7 @@ public class EnhancementAsProxyLazinessInterceptor
 	public Object forceInitialize(Object target, String attributeName) {
 		if ( BYTECODE_INTERCEPTOR_LOGGER.isTraceEnabled() ) {
 			BYTECODE_INTERCEPTOR_LOGGER.enhancementAsProxyLazinessForceInitialize(
-					entityKey.getEntityName(),
+					meta.persister.getEntityName(),
 					entityKey.getIdentifier(),
 					attributeName
 			);
@@ -169,7 +169,7 @@ public class EnhancementAsProxyLazinessInterceptor
 			boolean isTemporarySession) {
 		if ( BYTECODE_INTERCEPTOR_LOGGER.isTraceEnabled() ) {
 			BYTECODE_INTERCEPTOR_LOGGER.enhancementAsProxyLazinessForceInitialize(
-					entityKey.getEntityName(),
+					meta.persister.getEntityName(),
 					entityKey.getIdentifier(),
 					attributeName
 			);
@@ -178,7 +178,7 @@ public class EnhancementAsProxyLazinessInterceptor
 		if ( isTemporarySession ) {
 			// Add an entry for this entity in the PC of the temp Session
 			session.getPersistenceContext()
-					.addEnhancedProxy( entityKey.getPersister(), entityKey, asPersistentAttributeInterceptable( target ) );
+					.addEnhancedProxy( meta.persister, entityKey, asPersistentAttributeInterceptable( target ) );
 		}
 
 		return meta.persister.initializeEnhancedEntityUsedAsProxy( target, attributeName, session );
@@ -198,7 +198,7 @@ public class EnhancementAsProxyLazinessInterceptor
 			// just do the check here up-front
 			final boolean changed;
 			if ( meta.nonAggregatedCidMapper == null ) {
-				changed = ! entityKey.getPersister().getIdentifierType().isEqual( oldValue, newValue );
+				changed = ! meta.persister.getIdentifierType().isEqual( oldValue, newValue );
 			}
 			else {
 				final int subAttrIndex = meta.nonAggregatedCidMapper.getPropertyIndex( attributeName );
@@ -207,7 +207,7 @@ public class EnhancementAsProxyLazinessInterceptor
 			}
 
 			if ( changed ) {
-				throw new HibernateException( "identifier of an instance of " + entityKey.getEntityName()
+				throw new HibernateException( "identifier of an instance of " + meta.persister.getEntityName()
 						+ " was altered from " + oldValue + " to " + newValue );
 			}
 

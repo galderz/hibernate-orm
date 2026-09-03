@@ -382,7 +382,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 		if ( snapshot == NO_ROW ) {
 			throw new IllegalStateException(
 					"persistence context reported no row snapshot for "
-							+ infoString( key.getEntityName(), key.getIdentifier() )
+							+ infoString( persister.getEntityName(), key.getIdentifier() )
 			);
 		}
 		return (Object[]) snapshot;
@@ -513,7 +513,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 		holder.state = EntityHolderState.INITIALIZED;
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
-			fetchQueue.removeBatchLoadableEntityKey( key );
+			fetchQueue.removeBatchLoadableEntityKey( persister, key );
 		}
 		return holder;
 	}
@@ -562,8 +562,8 @@ class StatefulPersistenceContext implements PersistenceContext {
 		}
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
-			fetchQueue.removeBatchLoadableEntityKey( key );
-			fetchQueue.removeSubselect( key );
+			fetchQueue.removeBatchLoadableEntityKey( persister, key );
+			fetchQueue.removeSubselect( persister, key );
 		}
 		return holder;
 	}
@@ -1243,8 +1243,8 @@ class StatefulPersistenceContext implements PersistenceContext {
 	public Object removeProxy(EntityPersister persister, EntityKey key) {
 		final var fetchQueue = this.batchFetchQueue;
 		if ( fetchQueue != null ) {
-			fetchQueue.removeBatchLoadableEntityKey( key );
-			fetchQueue.removeSubselect( key );
+			fetchQueue.removeBatchLoadableEntityKey( persister, key );
+			fetchQueue.removeSubselect( persister, key );
 		}
 		return removeProxyByKey( persister, key );
 	}

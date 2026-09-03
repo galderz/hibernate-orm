@@ -93,8 +93,8 @@ public class BatchFetchQueue {
 	 * @return The fetch descriptor; may return null if no subselect fetch queued for
 	 * this entity key.
 	 */
-	public @Nullable SubselectFetch getSubselect(EntityKey key) {
-		return subselectsByEntityKey == null ? null : subselectsByEntityKey.get( key.getPersister(), key );
+	public @Nullable SubselectFetch getSubselect(EntityPersister persister, EntityKey key) {
+		return subselectsByEntityKey == null ? null : subselectsByEntityKey.get( persister, key );
 	}
 
 	/**
@@ -103,16 +103,16 @@ public class BatchFetchQueue {
 	 * @param key The entity for which to register the subselect fetch.
 	 * @param subquery The fetch descriptor.
 	 */
-	public void addSubselect(EntityKey key, SubselectFetch subquery) {
+	public void addSubselect(EntityPersister persister, EntityKey key, SubselectFetch subquery) {
 		if ( subselectsByEntityKey == null ) {
 			subselectsByEntityKey = new EntityKeyMap<>( 12 );
 		}
 
-		final var previous = subselectsByEntityKey.put( key.getPersister(), key, subquery );
+		final var previous = subselectsByEntityKey.put( persister, key, subquery );
 		if ( previous != null && LOG.isDebugEnabled() ) {
 			LOG.tracef(
 					"SubselectFetch previously registered with BatchFetchQueue for '%s.s'",
-					key.getEntityName(),
+					persister.getEntityName(),
 					key.getIdentifier()
 			);
 		}
@@ -124,9 +124,9 @@ public class BatchFetchQueue {
 	 * call this after loading the entity, since we might still
 	 * need to load its collections)
 	 */
-	public void removeSubselect(EntityKey key) {
+	public void removeSubselect(EntityPersister persister, EntityKey key) {
 		if ( subselectsByEntityKey != null ) {
-			subselectsByEntityKey.remove( key.getPersister(), key );
+			subselectsByEntityKey.remove( persister, key );
 		}
 	}
 
@@ -146,12 +146,12 @@ public class BatchFetchQueue {
 	 * referenced entity to be included in a batch even though it is
 	 * already associated with the {@link PersistenceContext}.
 	 */
-	public void addBatchLoadableEntityKey(EntityKey key) {
-		if ( key.isBatchLoadable( getLoadQueryInfluencers() ) ) {
+	public void addBatchLoadableEntityKey(EntityPersister persister, EntityKey key) {
+		if ( getLoadQueryInfluencers().effectivelyBatchLoadable( persister ) ) {
 			if ( batchLoadableEntityKeys == null ) {
 				batchLoadableEntityKeys = mapOfSize( 12 );
 			}
-			batchLoadableEntityKeys.computeIfAbsent( key.getEntityName(), k -> linkedSetOfSize( 8 ) )
+			batchLoadableEntityKeys.computeIfAbsent( persister.getEntityName(), k -> linkedSetOfSize( 8 ) )
 					.add( key );
 		}
 	}
@@ -162,10 +162,10 @@ public class BatchFetchQueue {
 	 * need to batch fetch it anymore, remove it from the queue
 	 * if necessary
 	 */
-	public void removeBatchLoadableEntityKey(EntityKey key) {
-		if ( key.isBatchLoadable( getLoadQueryInfluencers() )
+	public void removeBatchLoadableEntityKey(EntityPersister persister, EntityKey key) {
+		if ( getLoadQueryInfluencers().effectivelyBatchLoadable( persister )
 				&& batchLoadableEntityKeys != null ) {
-			final var entityKeys = batchLoadableEntityKeys.get( key.getEntityName() );
+			final var entityKeys = batchLoadableEntityKeys.get( persister.getEntityName() );
 			if ( entityKeys != null ) {
 				entityKeys.remove( key );
 			}
@@ -175,10 +175,10 @@ public class BatchFetchQueue {
 	/**
 	 * Intended for test usage. Really has no use-case in Hibernate proper.
 	 */
-	public boolean containsEntityKey(EntityKey key) {
-		if ( key.isBatchLoadable( getLoadQueryInfluencers() )
+	public boolean containsEntityKey(EntityPersister persister, EntityKey key) {
+		if ( getLoadQueryInfluencers().effectivelyBatchLoadable( persister )
 				&& batchLoadableEntityKeys != null ) {
-			final var entityKeys = batchLoadableEntityKeys.get( key.getEntityName() );
+			final var entityKeys = batchLoadableEntityKeys.get( persister.getEntityName() );
 			if ( entityKeys != null ) {
 				return entityKeys.contains( key );
 			}

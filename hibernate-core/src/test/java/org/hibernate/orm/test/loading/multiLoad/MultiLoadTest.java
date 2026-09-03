@@ -582,7 +582,7 @@ public class MultiLoadTest {
 			var first = session.getReference( SimpleEntity.class, 1 );
 			assertTrue( session.getPersistenceContext()
 								.getBatchFetchQueue()
-								.containsEntityKey( entityKey ) );
+								.containsEntityKey( entityKey.getPersister(), entityKey ) );
 
 				final List<SimpleEntity> list = session.findMultiple( SimpleEntity.class,
 						ids( 56 ),
@@ -591,7 +591,7 @@ public class MultiLoadTest {
 				assertEquals( 56, list.size() );
 				assertFalse( session.getPersistenceContext()
 						.getBatchFetchQueue()
-						.containsEntityKey( entityKey ) );
+						.containsEntityKey( entityKey.getPersister(), entityKey ) );
 		} );
 	}
 

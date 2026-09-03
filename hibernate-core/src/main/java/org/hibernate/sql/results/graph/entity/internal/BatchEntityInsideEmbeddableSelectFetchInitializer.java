@@ -128,7 +128,7 @@ public class BatchEntityInsideEmbeddableSelectFetchInitializer extends AbstractB
 				if ( toBatchLoad == null ) {
 					toBatchLoad = data.toBatchLoad = new EntityKeyMap<>();
 				}
-				final var persister = data.entityKey.getPersister();
+				final var persister = concreteDescriptor;
 				var parentInfos = toBatchLoad.get( persister, data.entityKey );
 				if ( parentInfos == null ) {
 					parentInfos = new ArrayList<>();

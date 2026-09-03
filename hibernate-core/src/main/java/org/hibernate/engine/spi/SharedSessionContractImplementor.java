@@ -372,7 +372,7 @@ public interface SharedSessionContractImplementor
 	 * Get the entity instance associated with the given {@link EntityKey},
 	 * calling the {@link Interceptor} if necessary.
 	 */
-	Object getEntityUsingInterceptor(EntityKey key) throws HibernateException;
+	Object getEntityUsingInterceptor(EntityPersister persister, EntityKey key) throws HibernateException;
 
 	/**
 	 * Return the identifier of the persistent object, or null if it is

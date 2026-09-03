@@ -244,7 +244,7 @@ public abstract class AbstractBatchEntitySelectFetchInitializer<Data extends Abs
 	protected Object getExistingInitializedInstance(Data data) {
 		final var session = data.getRowProcessingState().getSession();
 		final var persistenceContext = session.getPersistenceContextInternal();
-		final var holder = persistenceContext.getEntityHolder( data.entityKey.getPersister(), data.entityKey );
+		final var holder = persistenceContext.getEntityHolder( concreteDescriptor, data.entityKey );
 		if ( holder != null ) {
 			final Object entity = holder.getEntity();
 			if ( entity != null && holder.isEventuallyInitialized() ) {
@@ -260,7 +260,7 @@ public abstract class AbstractBatchEntitySelectFetchInitializer<Data extends Abs
 	protected void registerToBatchFetchQueue(Data data) {
 		assert data.entityKey != null;
 		data.getRowProcessingState().getSession().getPersistenceContextInternal()
-				.getBatchFetchQueue().addBatchLoadableEntityKey( data.entityKey );
+				.getBatchFetchQueue().addBatchLoadableEntityKey( concreteDescriptor, data.entityKey );
 	}
 
 	@Override

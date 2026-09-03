@@ -3725,8 +3725,8 @@ public abstract class AbstractEntityPersister
 			if ( loaded == null ) {
 				final var persistenceContext = session.getPersistenceContext();
 				persistenceContext.removeEntry( entity );
-				persistenceContext.removeEntity( entityKey.getPersister(), entityKey );
-				factory.getEntityNotFoundDelegate().handleEntityNotFound( entityKey.getEntityName(), id );
+				persistenceContext.removeEntity( this, entityKey );
+				factory.getEntityNotFoundDelegate().handleEntityNotFound( getEntityName(), id );
 			}
 			return readEnhancedEntityAttribute( entity, id, nameOfAttributeBeingAccessed, session );
 		}
