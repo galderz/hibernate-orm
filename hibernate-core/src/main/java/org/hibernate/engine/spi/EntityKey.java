@@ -22,7 +22,7 @@ import static org.hibernate.pretty.MessageHelper.infoString;
  * <p>
  * An {@code EntityKey} carries <em>only</em> the entity identifier value.
  * Entity-type discrimination (root entity name) and temporal changeset
- * information are handled externally by {@link EntityKeyMap}, which stores
+ * information are handled externally by {@link EntityKeyOpenMap}, which stores
  * this metadata in its internal {@code Node} structure.
  * <p>
  *
@@ -33,7 +33,7 @@ import static org.hibernate.pretty.MessageHelper.infoString;
  * @author Gavin King
  * @author Sanne Grinovero
  *
- * @see EntityKeyMap
+ * @see EntityKeyOpenMap
  */
 public interface EntityKey extends Serializable {
 
@@ -77,7 +77,7 @@ public interface EntityKey extends Serializable {
 
 	/**
 	 * The entity persister, if available. {@link EntityKeyImpl} does not carry
-	 * a persister and will throw. Keys obtained from {@link EntityKeyMap}
+	 * a persister and will throw. Keys obtained from {@link EntityKeyOpenMap}
 	 * iteration or from {@link EntityHolder#getEntityKey()} do carry a persister.
 	 * <p>
 	 * Prefer passing the persister explicitly via the

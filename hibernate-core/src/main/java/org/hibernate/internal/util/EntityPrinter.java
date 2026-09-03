@@ -10,7 +10,7 @@ import java.util.Map;
 import org.hibernate.HibernateException;
 import org.hibernate.bytecode.enhance.spi.LazyPropertyInitializer;
 import org.hibernate.engine.spi.EntityHolder;
-import org.hibernate.engine.spi.EntityKeyMap;
+import org.hibernate.engine.spi.EntityKeyOpenMap;
 import org.hibernate.engine.spi.SessionFactoryImplementor;
 import org.hibernate.engine.spi.TypedValue;
 import org.hibernate.type.Type;
@@ -96,7 +96,7 @@ public final class EntityPrinter {
 	}
 
 	// Cannot use Map as an argument because it clashes with the previous method (due to type erasure)
-	public void logEntities(Iterable<EntityKeyMap.Entry<EntityHolder>> entitiesByEntityKey)
+	public void logEntities(Iterable<EntityKeyOpenMap.Entry<EntityHolder>> entitiesByEntityKey)
 			throws HibernateException {
 		if ( CORE_LOGGER.isDebugEnabled() && entitiesByEntityKey.iterator().hasNext() ) {
 			CORE_LOGGER.debug( "Listing entities:" );

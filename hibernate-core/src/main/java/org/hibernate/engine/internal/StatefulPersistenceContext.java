@@ -40,8 +40,8 @@ import org.hibernate.engine.spi.CollectionKey;
 import org.hibernate.engine.spi.EntityEntry;
 import org.hibernate.engine.spi.EntityHolder;
 import org.hibernate.engine.spi.EntityKey;
-import org.hibernate.engine.spi.EntityKeyMap;
-import org.hibernate.engine.spi.EntityKeySet;
+import org.hibernate.engine.spi.EntityKeyOpenMap;
+import org.hibernate.engine.spi.EntityKeyOpenSet;
 import org.hibernate.engine.spi.EntityUniqueKey;
 import org.hibernate.engine.spi.ManagedEntity;
 import org.hibernate.engine.spi.NaturalIdResolutions;
@@ -119,7 +119,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	// costs are very often the dominating cost of an application using ORM.
 
 	// Loaded entity instances, by EntityKey
-	private EntityKeyMap<EntityHolderImpl> entitiesByKey;
+	private EntityKeyOpenMap<EntityHolderImpl> entitiesByKey;
 
 	// New entity holder cached instance
 	private EntityHolderImpl newEntityHolder;
@@ -129,7 +129,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	// Snapshots of the current database state for entities
 	// that have *not* been loaded
-	private EntityKeyMap<Object> entitySnapshotsByKey;
+	private EntityKeyOpenMap<Object> entitySnapshotsByKey;
 
 	// Identity map of array holder ArrayHolder instances, by the array instance
 	private IdentityHashMap<Object, PersistentCollection<?>> arrayHolders;
@@ -144,10 +144,10 @@ class StatefulPersistenceContext implements PersistenceContext {
 	private HashMap<CollectionKey, PersistentCollection<?>> collectionsByKey;
 
 	// Set of EntityKeys of deleted objects
-	private EntityKeySet nullifiableEntityKeys;
+	private EntityKeyOpenSet nullifiableEntityKeys;
 
 	// Set of EntityKeys of deleted unloaded proxies
-	private EntityKeySet deletedUnloadedEntityKeys;
+	private EntityKeyOpenSet deletedUnloadedEntityKeys;
 
 	// properties that we have tried to load and not found in the database
 	private HashSet<AssociationKey> nullAssociations;
@@ -185,9 +185,9 @@ class StatefulPersistenceContext implements PersistenceContext {
 		this.entityEntryContext = new EntityEntryContext( this );
 	}
 
-	private EntityKeyMap<EntityHolderImpl> getOrInitializeEntitiesByKey() {
+	private EntityKeyOpenMap<EntityHolderImpl> getOrInitializeEntitiesByKey() {
 		if ( entitiesByKey == null ) {
-			entitiesByKey = new EntityKeyMap<>( INIT_COLL_SIZE );
+			entitiesByKey = new EntityKeyOpenMap<>( INIT_COLL_SIZE );
 		}
 		return entitiesByKey;
 	}
@@ -1256,13 +1256,13 @@ class StatefulPersistenceContext implements PersistenceContext {
 	@Deprecated
 	@Override
 	@SuppressWarnings("unchecked")
-	public EntityKeyMap<Object> getEntitiesByKey() {
+	public EntityKeyOpenMap<Object> getEntitiesByKey() {
 		if ( entitiesByKey == null ) {
-			return new EntityKeyMap<>();
+			return new EntityKeyOpenMap<>();
 		}
 		else {
 			// Build a snapshot map containing only holders with non-null entities
-			final EntityKeyMap<Object> result = new EntityKeyMap<>( entitiesByKey.size() );
+			final EntityKeyOpenMap<Object> result = new EntityKeyOpenMap<>( entitiesByKey.size() );
 			for ( var entry : entitiesByKey.entrySet() ) {
 				if ( entry.getValue().entity != null ) {
 					// Reuse the node's rootEntityName via forEachRaw would be ideal,
@@ -1276,23 +1276,23 @@ class StatefulPersistenceContext implements PersistenceContext {
 
 	// Used by Hibernate Reactive
 	@Override
-	public EntityKeyMap<Object> getEntitySnapshotsByKey() {
+	public EntityKeyOpenMap<Object> getEntitySnapshotsByKey() {
 		return entitySnapshotsByKey;
 	}
 
 	// Used by Hibernate Reactive
 	@Override
-	public EntityKeyMap<Object> getOrInitializeEntitySnapshotsByKey() {
+	public EntityKeyOpenMap<Object> getOrInitializeEntitySnapshotsByKey() {
 		if ( entitySnapshotsByKey == null ) {
-			entitySnapshotsByKey = new EntityKeyMap<>( INIT_COLL_SIZE );
+			entitySnapshotsByKey = new EntityKeyOpenMap<>( INIT_COLL_SIZE );
 		}
 		return entitySnapshotsByKey;
 	}
 
 	@Override
 	@SuppressWarnings("unchecked")
-	public EntityKeyMap<EntityHolder> getEntityHoldersByKey() {
-		return (EntityKeyMap) entitiesByKey;
+	public EntityKeyOpenMap<EntityHolder> getEntityHoldersByKey() {
+		return (EntityKeyOpenMap) entitiesByKey;
 	}
 
 	@Override
@@ -1873,10 +1873,10 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	private <V> void writeEntityKeyMapToStream(
-			EntityKeyMap<V> map,
+			EntityKeyOpenMap<V> map,
 			ObjectOutputStream oos,
 			String keysName,
-			Serializer<EntityKeyMap.Entry<V>> serializer) throws IOException {
+			Serializer<EntityKeyOpenMap.Entry<V>> serializer) throws IOException {
 		if ( map == null ) {
 			oos.writeInt( 0 );
 		}
@@ -1891,7 +1891,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	}
 
 	private void writeEntityKeySetToStream(
-			EntityKeySet set,
+			EntityKeyOpenSet set,
 			ObjectOutputStream oos,
 			String keysName) throws IOException {
 		if ( set == null ) {
@@ -2005,7 +2005,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "entitySnapshotsByKey" );
 				}
-				context.entitySnapshotsByKey = new EntityKeyMap<>( Math.max( count, INIT_COLL_SIZE ) );
+				context.entitySnapshotsByKey = new EntityKeyOpenMap<>( Math.max( count, INIT_COLL_SIZE ) );
 				final var snapshotMetamodel = factory.getMappingMetamodel();
 				for ( int i = 0; i < count; i++ ) {
 					final Object snapId = ois.readObject();
@@ -2026,7 +2026,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "entitiesByKey" );
 				}
-				context.entitiesByKey = new EntityKeyMap<>( Math.max( count, INIT_COLL_SIZE ) );
+				context.entitiesByKey = new EntityKeyOpenMap<>( Math.max( count, INIT_COLL_SIZE ) );
 				final var metamodel = factory.getMappingMetamodel();
 				for ( int i = 0; i < count; i++ ) {
 					final Object entId = ois.readObject();
@@ -2125,7 +2125,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "nullifiableEntityKey" );
 				}
-				context.nullifiableEntityKeys = new EntityKeySet();
+				context.nullifiableEntityKeys = new EntityKeyOpenSet();
 				for ( int i = 0; i < count; i++ ) {
 					final Object nkId = ois.readObject();
 					final String nkEntityName = (String) ois.readObject();
@@ -2143,7 +2143,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 				if ( traceEnabled ) {
 					PERSISTENCE_CONTEXT_LOGGER.startingDeserializationOfEntries( count, "deletedUnloadedEntityKeys" );
 				}
-				context.deletedUnloadedEntityKeys = new EntityKeySet();
+				context.deletedUnloadedEntityKeys = new EntityKeyOpenSet();
 				for ( int i = 0; i < count; i++ ) {
 					final Object dkId = ois.readObject();
 					final String dkEntityName = (String) ois.readObject();
@@ -2222,7 +2222,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	@Override
 	public void registerNullifiableEntityKey(EntityPersister persister, EntityKey key) {
 		if ( nullifiableEntityKeys == null ) {
-			nullifiableEntityKeys = new EntityKeySet();
+			nullifiableEntityKeys = new EntityKeyOpenSet();
 		}
 		nullifiableEntityKeys.add( persister, key );
 	}
@@ -2242,7 +2242,7 @@ class StatefulPersistenceContext implements PersistenceContext {
 	@Override
 	public void registerDeletedUnloadedEntityKey(EntityPersister persister, EntityKey key) {
 		if ( deletedUnloadedEntityKeys == null ) {
-			deletedUnloadedEntityKeys = new EntityKeySet();
+			deletedUnloadedEntityKeys = new EntityKeyOpenSet();
 		}
 		deletedUnloadedEntityKeys.add( persister, key );
 	}

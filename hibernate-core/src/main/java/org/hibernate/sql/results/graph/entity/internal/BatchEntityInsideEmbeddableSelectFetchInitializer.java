@@ -9,7 +9,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.hibernate.engine.spi.EntityKeyMap;
+import org.hibernate.engine.spi.EntityKeyOpenMap;
 import org.hibernate.metamodel.mapping.AttributeMapping;
 import org.hibernate.metamodel.mapping.internal.ToOneAttributeMapping;
 import org.hibernate.persister.entity.EntityPersister;
@@ -48,7 +48,7 @@ public class BatchEntityInsideEmbeddableSelectFetchInitializer extends AbstractB
 	};
 
 	public static class BatchEntityInsideEmbeddableSelectFetchInitializerData extends AbstractBatchEntitySelectFetchInitializerData {
-		private EntityKeyMap<List<ParentInfo>> toBatchLoad;
+		private EntityKeyOpenMap<List<ParentInfo>> toBatchLoad;
 
 		public BatchEntityInsideEmbeddableSelectFetchInitializerData(
 				BatchEntityInsideEmbeddableSelectFetchInitializer initializer,
@@ -126,7 +126,7 @@ public class BatchEntityInsideEmbeddableSelectFetchInitializer extends AbstractB
 			if ( rootEmbeddableAttribute != null ) {
 				var toBatchLoad = data.toBatchLoad;
 				if ( toBatchLoad == null ) {
-					toBatchLoad = data.toBatchLoad = new EntityKeyMap<>();
+					toBatchLoad = data.toBatchLoad = new EntityKeyOpenMap<>();
 				}
 				final var persister = concreteDescriptor;
 				var parentInfos = toBatchLoad.get( persister, data.entityKey );

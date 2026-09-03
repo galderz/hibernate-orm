@@ -53,7 +53,7 @@ public class LoggingHelper {
 	}
 
 	public static String toLoggableString(EntityKey entityKey) {
-		// getPersister() works only on keys that carry a persister (from EntityKeyMap iteration or EntityEntry)
+		// getPersister() works only on keys that carry a persister (from EntityKeyOpenMap iteration or EntityEntry)
 		return toLoggableString( StringHelper.collapse( entityKey.getPersister().getEntityName() ), entityKey.getIdentifierValue() );
 	}
 

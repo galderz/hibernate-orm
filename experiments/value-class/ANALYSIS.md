@@ -55,7 +55,7 @@ The PersistenceContext SPI is ready to accept bare `EntityKeyImpl` with a separa
 Once the remaining ~40 downstream `.getPersister()` calls are refactored, `generateEntityKey()`
 can switch to returning `EntityKeyImpl` (1 oop, flattenable), eliminating the 408k × 24 bytes.
 
-## Priority 2: Reduce EntityKeyMap$Node allocations (DEFERRED)
+## Priority 2: Eliminate EntityKeyMap$Node allocations (IMPLEMENTED)
 
 ### Problem
 Each `EntityKeyMap.Node` is 40 bytes with 7 fields:
@@ -70,42 +70,39 @@ Each `EntityKeyMap.Node` is 40 bytes with 7 fields:
 
 189k instances × 40 bytes = 7.6 MB.
 
-### Option A: Remove fields from Node
+### Solution: Open-addressing hash map (`EntityKeyOpenMap`)
 
-Remove `changesetId` (null for 99%+ of entities) and `persister` (derivable from `rootEntityName`
-via `MetamodelMapping`). This saves 8 bytes per Node → 32 bytes/node, saving ~1.5 MB at 189k nodes.
-
-**Trade-off**: Temporal keys need a separate overlay map. Persister lookup on read adds CPU cost.
-
-### Option B: Open addressing hash map
-
-Replace chaining (linked list of Nodes) with open addressing (linear/quadratic probing). Eliminates
-the `Node` class entirely — keys and values stored in parallel arrays:
+Replaced the chaining-based `EntityKeyMap` (which allocates a `Node` object per entry) with
+`EntityKeyOpenMap` using **linear probing** and **parallel arrays**:
 
 ```
-int[] hashes          — 4 bytes/entry
-String[] entityNames  — 4 bytes/entry (compressed oop)
-Object[] identifiers  — 4 bytes/entry (compressed oop)  
-Object[] values       — 4 bytes/entry (compressed oop)
+int[] hashes               — 4 bytes/entry
+String[] rootEntityNames   — 4 bytes/entry (compressed oop)
+Object[] identifiers       — 4 bytes/entry (compressed oop)
+Object[] changesetIds      — 4 bytes/entry (compressed oop, usually null)
+EntityPersister[] persisters — 4 bytes/entry (compressed oop)
+Object[] values            — 4 bytes/entry (compressed oop)
 ```
 
-Total: ~16 bytes/entry vs 40 bytes/Node = **60% reduction**.
+Total: ~24 bytes/entry in arrays (no per-entry object header).
+At 75% load factor: ~32 bytes/slot amortised.
 
-With value class arrays (if `EntityKeyImpl` is flattenable), `identifiers` could be a flat array
-at 8 bytes/element (NULLABLE_ATOMIC_FLAT), but this doesn't save vs 4-byte compressed oops.
+vs `EntityKeyMap.Node`: 40 bytes per Node object (16-byte header + 24 bytes payload).
 
-**Trade-off**: Open addressing is more complex (tombstone-based deletion, different resize strategy,
-load factor constraints). Probe chains can degrade under high load.
+**Key design decisions:**
+- **Linear probing** for collision resolution (good cache locality).
+- **Tombstone-based deletion** (`TOMBSTONE` sentinel in `rootEntityNames`) to maintain
+  probe chain integrity.
+- **Automatic tombstone cleanup**: when tombstones exceed 25% of table, triggers resize
+  to rehash and eliminate them.
+- **Same public API** as `EntityKeyMap` — drop-in replacement.
+- **`EntityKeyOpenSet`** wraps `EntityKeyOpenMap<Object>` for set usage.
 
-### Option C: Hybrid — inline key fields into EntityHolderImpl
+**Expected impact**: Eliminates 189k × 40 bytes = **7.6 MB** of `Node` object allocations.
 
-Since every `EntityKeyMap<EntityHolderImpl>` Node maps to exactly one `EntityHolderImpl`, we could
-store the key-part fields (`hash`, `rootEntityName`, `identifier`) directly inside `EntityHolderImpl`
-and use the holder array itself as the hash map storage. This eliminates the separate Node allocation.
+### Other options considered but not implemented
 
-Per-entry storage: `EntityHolderImpl` already has ~48 bytes. Adding `hash(4) + rootEntityName(4) +
-identifier(4) + next(4)` = 16 bytes → 64 bytes total, vs current 40 (Node) + 48 (Holder) = 88 bytes.
-Saves ~24 bytes/entry = **~4.5 MB at 189k entries**.
+**Option A: Remove fields from Node** — saves ~1.5 MB but still allocates Node objects.
 
-**Trade-off**: Tightly couples the hash map with the holder class. Only works for the
-`entitiesByKey` map, not for `entitySnapshotsByKey` or other EntityKeyMap usages.
+**Option C: Inline key fields into EntityHolderImpl** — saves ~4.5 MB but tightly couples
+hash map with the holder class. Only works for `entitiesByKey`, not other maps.

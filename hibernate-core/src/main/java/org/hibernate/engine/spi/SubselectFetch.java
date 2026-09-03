@@ -27,14 +27,14 @@ public class SubselectFetch {
 	private final TableGroup ownerTableGroup;
 	private final JdbcParametersList loadingJdbcParameters;
 	private final JdbcParameterBindings loadingJdbcParameterBindings;
-	private final EntityKeySet resultingEntityKeys;
+	private final EntityKeyOpenSet resultingEntityKeys;
 
 	public SubselectFetch(
 			QuerySpec loadingSqlAst,
 			TableGroup ownerTableGroup,
 			JdbcParametersList loadingJdbcParameters,
 			JdbcParameterBindings loadingJdbcParameterBindings,
-			EntityKeySet resultingEntityKeys) {
+			EntityKeyOpenSet resultingEntityKeys) {
 		this.loadingSqlAst = loadingSqlAst;
 		this.ownerTableGroup = ownerTableGroup;
 		this.loadingJdbcParameters = loadingJdbcParameters;
@@ -75,7 +75,7 @@ public class SubselectFetch {
 	 * <p>
 	 * Used for "empty collection" handling mostly
 	 */
-	public EntityKeySet getResultingEntityKeys() {
+	public EntityKeyOpenSet getResultingEntityKeys() {
 		return resultingEntityKeys;
 	}
 
@@ -157,7 +157,7 @@ public class SubselectFetch {
 										.findTableGroup( entityInitializer.getNavigablePath() ),
 								loadingJdbcParameters,
 								loadingJdbcParameterBindings,
-								new EntityKeySet()
+								new EntityKeyOpenSet()
 						)
 				);
 				subselectFetch.resultingEntityKeys.add( holder.getDescriptor(), holder.getEntityKey() );

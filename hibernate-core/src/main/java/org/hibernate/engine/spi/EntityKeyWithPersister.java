@@ -19,7 +19,7 @@ import static org.hibernate.pretty.MessageHelper.infoString;
  * Instances are typically created by
  * {@link SharedSessionContractImplementor#generateEntityKey} and used as
  * short-lived lookup keys that pass through the persistence context API.
- * The internal storage ({@link EntityKeyMap}) does <em>not</em> rely on
+ * The internal storage ({@link EntityKeyOpenMap}) does <em>not</em> rely on
  * the persister being present on the key — it stores the root entity
  * name in its own {@code Node}.
  *

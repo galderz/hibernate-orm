@@ -46,7 +46,7 @@ public class BatchFetchQueue {
 	 * A map of {@link SubselectFetch subselect-fetch descriptors} keyed by the
 	 * {@link EntityKey} against which the descriptor is registered.
 	 */
-	private @Nullable EntityKeyMap<SubselectFetch> subselectsByEntityKey;
+	private @Nullable EntityKeyOpenMap<SubselectFetch> subselectsByEntityKey;
 
 	/**
 	 * Used to hold information about the entities that are currently eligible for batch-fetching. Ultimately
@@ -105,7 +105,7 @@ public class BatchFetchQueue {
 	 */
 	public void addSubselect(EntityPersister persister, EntityKey key, SubselectFetch subquery) {
 		if ( subselectsByEntityKey == null ) {
-			subselectsByEntityKey = new EntityKeyMap<>( 12 );
+			subselectsByEntityKey = new EntityKeyOpenMap<>( 12 );
 		}
 
 		final var previous = subselectsByEntityKey.put( persister, key, subquery );

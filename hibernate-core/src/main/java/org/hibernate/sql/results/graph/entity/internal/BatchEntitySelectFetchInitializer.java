@@ -7,7 +7,7 @@ package org.hibernate.sql.results.graph.entity.internal;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.hibernate.engine.spi.EntityKeyMap;
+import org.hibernate.engine.spi.EntityKeyOpenMap;
 import org.hibernate.metamodel.mapping.AttributeMapping;
 import org.hibernate.metamodel.mapping.internal.ToOneAttributeMapping;
 import org.hibernate.persister.entity.EntityPersister;
@@ -28,7 +28,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 	protected final Type referencedModelPartType;
 
 	public static class BatchEntitySelectFetchInitializerData extends AbstractBatchEntitySelectFetchInitializerData {
-		private EntityKeyMap<List<ParentInfo>> toBatchLoad;
+		private EntityKeyOpenMap<List<ParentInfo>> toBatchLoad;
 
 		public BatchEntitySelectFetchInitializerData(
 				BatchEntitySelectFetchInitializer initializer,
@@ -64,7 +64,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 		final var owningData = owningEntityInitializer.getData( rowProcessingState );
 		var toBatchLoad = data.toBatchLoad;
 		if ( toBatchLoad == null ) {
-			toBatchLoad = data.toBatchLoad = new EntityKeyMap<>();
+			toBatchLoad = data.toBatchLoad = new EntityKeyOpenMap<>();
 		}
 		// Always register the entity key for resolution
 		final var persister = concreteDescriptor;

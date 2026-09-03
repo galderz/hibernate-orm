@@ -13,16 +13,16 @@ import org.hibernate.AssertionFailure;
  * <p>
  * This class is intentionally minimal: it stores <em>only</em> the entity
  * identifier value. Entity-type discrimination is handled externally by
- * {@link EntityKeyMap}, which stores the root entity name in its internal
+ * {@link EntityKeyOpenMap}, which stores the root entity name in its internal
  * {@code Node}.
  * <p>
  * <b>Note:</b> {@code equals}/{@code hashCode} compare identifiers only.
  * Two keys for different entity types but with the same id will be
  * considered equal by this class. Correct behaviour relies on
- * {@link EntityKeyMap} providing entity-type-aware lookups.
+ * {@link EntityKeyOpenMap} providing entity-type-aware lookups.
  *
  * @see EntityKey
- * @see EntityKeyMap
+ * @see EntityKeyOpenMap
  */
 public final class EntityKeyImpl implements EntityKey {
 
