@@ -23,32 +23,37 @@
 (9 bytes rounded to 16 > MAX_ATOMIC_OP_SIZE of 8), so the JVM cannot flatten it in arrays or
 scalarize it as aggressively.
 
-### Solution
+### Solution implemented
 Two-pronged approach:
 
-1. **`generateEntityKey()` now returns `EntityKeyImpl`** (1 oop = 4 bytes payload → flattenable).
-   This eliminates 408k × 24 bytes = **9.8 MB** of `EntityKeyWithPersister` allocations on the
-   hot path. With JEP 401, `EntityKeyImpl` as a value class can be NULLABLE_ATOMIC_FLAT at 8 bytes
-   per element and C2 can scalarize it via `InlineTypePassFieldsAsArgs=true`.
-
-2. **`PersistenceContext` methods now accept `(EntityPersister, EntityKey)`** as separate parameters.
+1. **`PersistenceContext` methods now accept `(EntityPersister, EntityKey)`** as separate parameters.
    Every method that previously relied on `key.getPersister()` now receives the persister explicitly.
    The `StatefulPersistenceContext` implementation uses this persister directly for `EntityKeyMap`
-   operations, eliminating the need for the key to carry a persister reference.
+   operations. This decouples the map operations from the key carrying a persister.
+
+2. **`generateEntityKey()` currently still returns `EntityKeyWithPersister`** because many downstream
+   call sites (event listeners, bytecode enhancement interceptors, batch fetch queue, etc.) still
+   call `key.getPersister()`, `key.getEntityName()`, and `key.isBatchLoadable()` on the key. These
+   would all need individual fixes before `generateEntityKey()` can return bare `EntityKeyImpl`.
+
+### Path to full EntityKeyImpl on hot path
+To fully eliminate `EntityKeyWithPersister` from the hot path, the remaining ~40 call sites that
+call `.getPersister()` / `.getEntityName()` / `.isBatchLoadable()` on EntityKey variables (especially
+`keyToLoad` in `DefaultLoadEventListener`, `key` in `BatchFetchQueue`, `entityKey` in
+`EnhancementAsProxyLazinessInterceptor`, etc.) must be refactored to use the persister from the
+surrounding context. Once done, `generateEntityKey()` can return `EntityKey.of(id)` = `EntityKeyImpl`.
 
 ### Backward compatibility
-- `EntityKeyWithPersister` is **retained** for keys reconstructed from `EntityKeyMap.Node.toEntityKey()`
-  (used by `EntityHolder.getEntityKey()`, iteration, etc.) and for `EntityKey.of(id, persister)`.
+- `EntityKeyWithPersister` is **retained** for keys from `generateEntityKey()`,
+  `EntityKeyMap.Node.toEntityKey()`, and `EntityKey.of(id, persister)`.
 - The `EntityKey` interface still defines `getPersister()`, `getEntityName()`, and `isBatchLoadable()`
-  as **default methods** that delegate to a persister — they work on `EntityKeyWithPersister` and
+  as **default methods** — they work on `EntityKeyWithPersister` and
   throw `UnsupportedOperationException` on bare `EntityKeyImpl`.
-- Code that receives keys from `EntityHolder` or `EntityEntry` (which store keys created by
-  `Node.toEntityKey()`) can still call `key.getPersister()`.
 
-### Net effect
-The hot path `generateEntityKey() → persistenceContext.getEntityHolder() / claimEntityHolderIfPossible()`
-creates only `EntityKeyImpl` (1 oop, flattenable value class). The persister travels as a separate
-method parameter. No `EntityKeyWithPersister` is allocated on this path.
+### Current net effect
+The PersistenceContext SPI is ready to accept bare `EntityKeyImpl` with a separate persister.
+Once the remaining ~40 downstream `.getPersister()` calls are refactored, `generateEntityKey()`
+can switch to returning `EntityKeyImpl` (1 oop, flattenable), eliminating the 408k × 24 bytes.
 
 ## Priority 2: Reduce EntityKeyMap$Node allocations (DEFERRED)
 
