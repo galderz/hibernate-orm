@@ -288,11 +288,12 @@ public abstract class AbstractBatchEntitySelectFetchInitializer<Data extends Abs
 	}
 
 	protected static Object loadInstance(
+			EntityPersister persister,
 			EntityKey entityKey,
 			ToOneAttributeMapping toOneMapping,
 			boolean affectedByFilter,
 			SharedSessionContractImplementor session) {
-		final String entityName = entityKey.getEntityName();
+		final String entityName = persister.getEntityName();
 		final Object identifier = entityKey.getIdentifier();
 		final Object instance =
 				session.internalLoad( entityName, identifier, true,

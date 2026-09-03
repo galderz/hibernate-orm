@@ -311,7 +311,7 @@ public class DefaultLoadEventListener implements LoadEventListener {
 			EntityPersister persister,
 			EntityKey keyToLoad,
 			EventSource session) {
-		if ( keyToLoad.isBatchLoadable( session.getLoadQueryInfluencers() ) ) {
+		if ( session.getLoadQueryInfluencers().effectivelyBatchLoadable( persister ) ) {
 			// Add a batch-fetch entry into the queue for this entity
 			session.getPersistenceContextInternal().getBatchFetchQueue()
 					.addBatchLoadableEntityKey( persister, keyToLoad );

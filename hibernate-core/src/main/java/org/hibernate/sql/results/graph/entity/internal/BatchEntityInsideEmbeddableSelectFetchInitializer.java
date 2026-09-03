@@ -177,7 +177,7 @@ public class BatchEntityInsideEmbeddableSelectFetchInitializer extends AbstractB
 				final var session = data.getRowProcessingState().getSession();
 				final var factory = session.getFactory();
 				final var persistenceContext = session.getPersistenceContextInternal();
-				final Object loadedInstance = loadInstance( entityKey, toOneMapping, affectedByFilter, session );
+				final Object loadedInstance = loadInstance( entityKey.getPersister(), entityKey, toOneMapping, affectedByFilter, session );
 				for ( ParentInfo parentInfo : parentInfos ) {
 					final Object parentEntityInstance = parentInfo.parentEntityInstance;
 					final var parentEntityEntry = persistenceContext.getEntry( parentEntityInstance );

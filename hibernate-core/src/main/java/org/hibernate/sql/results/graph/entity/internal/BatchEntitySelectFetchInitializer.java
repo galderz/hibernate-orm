@@ -108,7 +108,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 			for ( var entry : toBatchLoad.entrySet() ) {
 				final var entityKey = entry.getKey();
 				final var parentInfos = entry.getValue();
-				final Object instance = loadInstance( entityKey, toOneMapping, affectedByFilter, session );
+				final Object instance = loadInstance( entityKey.getPersister(), entityKey, toOneMapping, affectedByFilter, session );
 				for ( var parentInfo : parentInfos ) {
 					final Object parentInstance = parentInfo.parentInstance;
 					final var entityEntry = persistenceContext.getEntry( parentInstance );
