@@ -97,7 +97,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 		}
 	}
 
-	private static class ParentInfoList implements Iterable<ParentInfo> {
+	private static final class ParentInfoList {
 		private static final int DEFAULT_CAPACITY = 10;
 
 		private static final ParentInfo[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
@@ -121,10 +121,6 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 				elementData = grow();
 			elementData[s] = e;
 			size = s + 1;
-		}
-
-		public Iterator<ParentInfo> iterator() {
-			return new Itr();
 		}
 
 		private ParentInfo[] grow() {
@@ -170,58 +166,6 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 				return minLength;
 			}
 		}
-
-		private class Itr implements Iterator<ParentInfo> {
-			int cursor;       // index of next element to return
-			int lastRet = -1; // index of last element returned; -1 if no such
-			int expectedModCount = modCount;
-
-			// prevent creating a synthetic constructor
-			Itr() {}
-
-			public boolean hasNext() {
-				return cursor != size;
-			}
-
-			public ParentInfo next() {
-				checkForComodification();
-				int i = cursor;
-				if (i >= size)
-					throw new NoSuchElementException();
-				ParentInfo[] elementData = ParentInfoList.this.elementData;
-				if (i >= elementData.length)
-					throw new ConcurrentModificationException();
-				cursor = i + 1;
-				return elementData[lastRet = i];
-			}
-
-			public void remove() {
-				throw new IllegalStateException("NYE");
-			}
-
-			@Override
-			public void forEachRemaining(Consumer<? super ParentInfo> action) {
-				Objects.requireNonNull(action);
-				final int size = ParentInfoList.this.size;
-				int i = cursor;
-				if (i < size) {
-					final ParentInfo[] es = elementData;
-					if (i >= es.length)
-						throw new ConcurrentModificationException();
-					for (; i < size && modCount == expectedModCount; i++)
-						action.accept(elementData[i]);
-					// update once at end to reduce heap write traffic
-					cursor = i;
-					lastRet = i - 1;
-					checkForComodification();
-				}
-			}
-
-			final void checkForComodification() {
-				if (modCount != expectedModCount)
-					throw new ConcurrentModificationException();
-			}
-		}
 	}
 
 	@Override
@@ -236,7 +180,8 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 				final var entityKey = entry.getKey();
 				final var parentInfos = entry.getValue();
 				final Object instance = loadInstance( entityKey, toOneMapping, affectedByFilter, session );
-				for ( var parentInfo : parentInfos ) {
+				for ( int i = 0; i < parentInfos.size; i++ ) {
+					final var parentInfo = parentInfos.elementData[i];
 					final Object parentInstance = parentInfo.parentInstance;
 					final var entityEntry = persistenceContext.getEntry( parentInstance );
 					referencedModelPartSetter.set( parentInstance, instance );
@@ -245,6 +190,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 						loadedState[parentInfo.propertyIndex] =
 								referencedModelPartType.deepCopy( instance, factory );
 					}
+				}
 				}
 			}
 			data.toBatchLoad = null;
