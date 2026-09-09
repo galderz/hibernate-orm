@@ -191,7 +191,6 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 								referencedModelPartType.deepCopy( instance, factory );
 					}
 				}
-				}
 			}
 			data.toBatchLoad = null;
 		}
