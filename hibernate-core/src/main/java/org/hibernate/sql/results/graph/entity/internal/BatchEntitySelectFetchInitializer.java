@@ -87,7 +87,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 		}
 	}
 
-	private static value class ParentInfo {
+	public static value class ParentInfo {
 		private final Object parentInstance;
 		private final short propertyIndex;
 
@@ -97,7 +97,7 @@ public class BatchEntitySelectFetchInitializer extends AbstractBatchEntitySelect
 		}
 	}
 
-	private static final class ParentInfoList {
+	public static final class ParentInfoList {
 		private static final int DEFAULT_CAPACITY = 10;
 
 		private static final ParentInfo[] DEFAULTCAPACITY_EMPTY_ELEMENTDATA = {};
